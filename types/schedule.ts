@@ -1,0 +1,22 @@
+export interface TimeSlot {
+  dayOfWeek: number // 0 = Sunday, 1 = Monday, etc.
+  time: string // "8:00 PM" format
+}
+
+export interface ScheduleItem {
+  id: string
+  channelId: string
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  mediaId: string
+  mediaType: string
+  title: string
+  runtime: number
+  occurrence: "weekly" | "weekdays"
+  order: "chronological" | "airdate" | "shuffle" | "random"
+  repeat: "restart" | "end" | "follow-up"
+  followUpMediaId?: string
+  fillerSource: "channel" | "media-channel" | "media" | "block-marathon" | "block-marathon-channel" | "any" | "none"
+  fillStyle: "intermixed" | "at-end" | "at-beginning" | "none" | "static"
+}
