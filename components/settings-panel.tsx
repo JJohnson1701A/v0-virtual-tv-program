@@ -15,6 +15,7 @@ import { useChannels } from "@/hooks/use-channels"
 import { FileUpload } from "@/components/file-upload"
 import { RefreshCwIcon, MonitorIcon, CalendarIcon } from "lucide-react"
 import type { RatingAudioFiles } from "@/hooks/use-settings"
+import { Checkbox } from "@/components/ui/checkbox" // Added Checkbox import
 
 export function SettingsPanel() {
   const {
@@ -23,8 +24,11 @@ export function SettingsPanel() {
     updateTVSeasonSetting,
     updateRatingAudioFile,
     updateChannelInfoDisplay,
-    updateMediaInfoDisplay, // Added updateMediaInfoDisplay
+    updateMediaInfoDisplay,
     updateSafeHarborTimes,
+    updateChannelTypeSettings, // Added new functions
+    updateCooldownSetting,
+    updateDaypartSetting,
   } = useSettings()
   const { displays, isLoading: displaysLoading, refreshDisplays } = useDisplays()
   const { channels } = useChannels()
@@ -120,6 +124,114 @@ export function SettingsPanel() {
   }
 
   const timeOptions = generateTimeOptions()
+
+  // New options for Channel Type Settings section
+  const cooldownOptions = [
+    "Same Day only",
+    "1 Day",
+    "3 Days",
+    "7 Days (1 Week)",
+    "14 Days (2 Weeks)",
+    "30 Days (1 Month)",
+    "60 Days (2 Months)",
+    "90 Days (3 Months)",
+    "180 Days (6 Months)",
+    "365 Days (1 Year)",
+  ]
+
+  const channelTypeOptions = [
+    "Broadcast / OTA",
+    "General Cable",
+    "Premium Cable",
+    "Movie Channel",
+    "Kids",
+    "News/Talk",
+    "Sports",
+    "Faith/Religious",
+    "Music/Variety",
+    "Educational/Documentary",
+    "Public Access",
+    "FAST/Streaming Linear",
+  ]
+
+  const mediaTypeOptions = ["TV Show", "Movie", "Music Video", "Filler", "Podcasts"]
+
+  const audienceOptions = ["family", "adult", "senior", "baby", "toddler", "boy", "girl", "teen", "young adult"]
+
+  const genreOptions = [
+    "Action",
+    "Adventure",
+    "Animation",
+    "Comedy",
+    "Drama",
+    "Horror",
+    "Romance",
+    "Sci-Fi",
+    "Thriller",
+  ]
+
+  const dayparts = [
+    { key: "earlyMorning", label: "Early Morning (5:00 AM - 9:00 AM)" },
+    { key: "daytime", label: "Daytime (9:00 AM - 3:00 PM)" },
+    { key: "afterSchool", label: "After School (3:00 PM - 5:00 PM)" },
+    { key: "earlyFringe", label: "Early Fringe (5:00 PM - 7:00 PM)" },
+    { key: "earlyPrime", label: "Early Prime (7:00 PM - 8:00 PM)" },
+    { key: "primetime", label: "Primetime (8:00 PM - 10:00 PM)" },
+    { key: "latePrime", label: "Late Prime (10:00 PM - 11:00 PM)" },
+    { key: "lateNight", label: "Late Night (10:00 PM - 12:00 AM)" },
+    { key: "overnight", label: "Overnight (12:00 AM - 5:00 AM)" },
+  ]
+
+  const handleDaypartMediaTypeToggle = (daypart: string, mediaType: string, checked: boolean) => {
+    const currentMediaTypes =
+      settings.channelTypeSettings.dayparts[daypart as keyof typeof settings.channelTypeSettings.dayparts].mediaTypes
+    if (checked) {
+      updateDaypartSetting(daypart as keyof typeof settings.channelTypeSettings.dayparts, "mediaTypes", [
+        ...currentMediaTypes,
+        mediaType,
+      ])
+    } else {
+      updateDaypartSetting(
+        daypart as keyof typeof settings.channelTypeSettings.dayparts,
+        "mediaTypes",
+        currentMediaTypes.filter((mt) => mt !== mediaType),
+      )
+    }
+  }
+
+  const handleDaypartAudienceToggle = (daypart: string, audience: string, checked: boolean) => {
+    const currentAudience =
+      settings.channelTypeSettings.dayparts[daypart as keyof typeof settings.channelTypeSettings.dayparts].audience
+    if (checked) {
+      updateDaypartSetting(daypart as keyof typeof settings.channelTypeSettings.dayparts, "audience", [
+        ...currentAudience,
+        audience,
+      ])
+    } else {
+      updateDaypartSetting(
+        daypart as keyof typeof settings.channelTypeSettings.dayparts,
+        "audience",
+        currentAudience.filter((a) => a !== audience),
+      )
+    }
+  }
+
+  const handleDaypartGenreToggle = (daypart: string, genre: string, checked: boolean) => {
+    const currentGenre =
+      settings.channelTypeSettings.dayparts[daypart as keyof typeof settings.channelTypeSettings.dayparts].genre
+    if (checked) {
+      updateDaypartSetting(daypart as keyof typeof settings.channelTypeSettings.dayparts, "genre", [
+        ...currentGenre,
+        genre,
+      ])
+    } else {
+      updateDaypartSetting(
+        daypart as keyof typeof settings.channelTypeSettings.dayparts,
+        "genre",
+        currentGenre.filter((g) => g !== genre),
+      )
+    }
+  }
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
@@ -434,6 +546,237 @@ export function SettingsPanel() {
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Channel Type Settings</CardTitle>
+            <CardDescription>
+              Configure auto-scheduler behavior for different channel types and time periods
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Channel Type Selector */}
+            <div className="space-y-2">
+              <Label htmlFor="channel-type-select">Channel Type</Label>
+              <Select
+                value={settings.channelTypeSettings.channelType}
+                onValueChange={(value) => updateChannelTypeSettings({ channelType: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select channel type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {channelTypeOptions.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Separator />
+
+            {/* Cooldown Settings */}
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base font-medium">Cooldown</Label>
+                <p className="text-sm text-muted-foreground">
+                  Set how long to wait before repeating content of each type
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cooldown-movies">Movies</Label>
+                  <Select
+                    value={settings.channelTypeSettings.cooldown.movies}
+                    onValueChange={(value) => updateCooldownSetting("movies", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cooldownOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cooldown-tv-show">TV Show</Label>
+                  <Select
+                    value={settings.channelTypeSettings.cooldown.tvShow}
+                    onValueChange={(value) => updateCooldownSetting("tvShow", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cooldownOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cooldown-tv-episodes">TV Episodes</Label>
+                  <Select
+                    value={settings.channelTypeSettings.cooldown.tvEpisodes}
+                    onValueChange={(value) => updateCooldownSetting("tvEpisodes", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cooldownOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cooldown-filler">Filler</Label>
+                  <Select
+                    value={settings.channelTypeSettings.cooldown.filler}
+                    onValueChange={(value) => updateCooldownSetting("filler", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cooldownOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cooldown-music-videos">Music Videos</Label>
+                  <Select
+                    value={settings.channelTypeSettings.cooldown.musicVideos}
+                    onValueChange={(value) => updateCooldownSetting("musicVideos", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cooldownOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Daypart Settings */}
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base font-medium">Daypart Settings</Label>
+                <p className="text-sm text-muted-foreground">
+                  Configure allowed media types, audiences, and genres for different times of day
+                </p>
+              </div>
+
+              {dayparts.map((daypart) => (
+                <div key={daypart.key} className="space-y-3 border rounded-lg p-4">
+                  <Label className="text-sm font-medium">{daypart.label}</Label>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Media Types */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Media Types</Label>
+                      <div className="border rounded-md p-2 max-h-32 overflow-y-auto space-y-1">
+                        {mediaTypeOptions.map((mediaType) => (
+                          <div key={mediaType} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`${daypart.key}-mediatype-${mediaType}`}
+                              checked={settings.channelTypeSettings.dayparts[
+                                daypart.key as keyof typeof settings.channelTypeSettings.dayparts
+                              ].mediaTypes.includes(mediaType)}
+                              onCheckedChange={(checked) =>
+                                handleDaypartMediaTypeToggle(daypart.key, mediaType, checked as boolean)
+                              }
+                            />
+                            <label htmlFor={`${daypart.key}-mediatype-${mediaType}`} className="text-xs cursor-pointer">
+                              {mediaType}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Audience */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Audience</Label>
+                      <div className="border rounded-md p-2 max-h-32 overflow-y-auto space-y-1">
+                        {audienceOptions.map((audience) => (
+                          <div key={audience} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`${daypart.key}-audience-${audience}`}
+                              checked={settings.channelTypeSettings.dayparts[
+                                daypart.key as keyof typeof settings.channelTypeSettings.dayparts
+                              ].audience.includes(audience)}
+                              onCheckedChange={(checked) =>
+                                handleDaypartAudienceToggle(daypart.key, audience, checked as boolean)
+                              }
+                            />
+                            <label
+                              htmlFor={`${daypart.key}-audience-${audience}`}
+                              className="text-xs capitalize cursor-pointer"
+                            >
+                              {audience}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Genre */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Genre</Label>
+                      <div className="border rounded-md p-2 max-h-32 overflow-y-auto space-y-1">
+                        {genreOptions.map((genre) => (
+                          <div key={genre} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`${daypart.key}-genre-${genre}`}
+                              checked={settings.channelTypeSettings.dayparts[
+                                daypart.key as keyof typeof settings.channelTypeSettings.dayparts
+                              ].genre.includes(genre)}
+                              onCheckedChange={(checked) =>
+                                handleDaypartGenreToggle(daypart.key, genre, checked as boolean)
+                              }
+                            />
+                            <label htmlFor={`${daypart.key}-genre-${genre}`} className="text-xs cursor-pointer">
+                              {genre}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 

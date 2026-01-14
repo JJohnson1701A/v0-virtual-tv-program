@@ -46,6 +46,36 @@ export interface SafeHarborTimes {
   endTime: string // Time in format "HH:MM AM/PM"
 }
 
+export interface CooldownSettings {
+  movies: string
+  tvShow: string
+  tvEpisodes: string
+  filler: string
+  musicVideos: string
+}
+
+export interface DaypartSettings {
+  mediaTypes: string[]
+  audience: string[]
+  genre: string[]
+}
+
+export interface ChannelTypeSettings {
+  channelType: string
+  cooldown: CooldownSettings
+  dayparts: {
+    earlyMorning: DaypartSettings
+    daytime: DaypartSettings
+    afterSchool: DaypartSettings
+    earlyFringe: DaypartSettings
+    earlyPrime: DaypartSettings
+    primetime: DaypartSettings
+    latePrime: DaypartSettings
+    lateNight: DaypartSettings
+    overnight: DaypartSettings
+  }
+}
+
 export interface Settings {
   autoSchedule: boolean
   safeHarbor: boolean
@@ -61,6 +91,7 @@ export interface Settings {
   mediaInfoDisplay: MediaInfoDisplay
   lastViewedChannel?: number
   tvSeason: TVSeasonSettings
+  channelTypeSettings: ChannelTypeSettings // Added channel type settings
 }
 
 // Helper function to get the last Sunday of November
@@ -228,6 +259,42 @@ const getDefaultSafeHarborTimes = (): SafeHarborTimes => {
   }
 }
 
+const getDefaultDaypartSettings = (): DaypartSettings => {
+  return {
+    mediaTypes: [],
+    audience: [],
+    genre: [],
+  }
+}
+
+const getDefaultCooldownSettings = (): CooldownSettings => {
+  return {
+    movies: "Same Day only",
+    tvShow: "Same Day only",
+    tvEpisodes: "Same Day only",
+    filler: "Same Day only",
+    musicVideos: "Same Day only",
+  }
+}
+
+const getDefaultChannelTypeSettings = (): ChannelTypeSettings => {
+  return {
+    channelType: "Broadcast / OTA",
+    cooldown: getDefaultCooldownSettings(),
+    dayparts: {
+      earlyMorning: getDefaultDaypartSettings(),
+      daytime: getDefaultDaypartSettings(),
+      afterSchool: getDefaultDaypartSettings(),
+      earlyFringe: getDefaultDaypartSettings(),
+      earlyPrime: getDefaultDaypartSettings(),
+      primetime: getDefaultDaypartSettings(),
+      latePrime: getDefaultDaypartSettings(),
+      lateNight: getDefaultDaypartSettings(),
+      overnight: getDefaultDaypartSettings(),
+    },
+  }
+}
+
 export const defaultSettings: Settings = {
   autoSchedule: false,
   safeHarbor: true,
@@ -255,4 +322,5 @@ export const defaultSettings: Settings = {
   showMediaInfo: true,
   mediaInfoDisplay: getDefaultMediaInfoDisplay(),
   tvSeason: getDefaultTVSeasonSettings(),
+  channelTypeSettings: getDefaultChannelTypeSettings(), // Added default channel type settings
 }

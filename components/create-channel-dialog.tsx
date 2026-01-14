@@ -402,6 +402,28 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
                 </p>
               </div>
 
+              {/* Channel Type Picklist */}
+              <div className="space-y-2">
+                <Label htmlFor="channel-type">Channel Type</Label>
+                <Select
+                  value={formData.channelType || ""}
+                  onValueChange={(value) => handleInputChange("channelType", value as ChannelType)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select channel type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {channelTypeOptions.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Separator />
+
               {/* Audience Multi-Select */}
               <div className="space-y-2">
                 <Label>Audience</Label>
@@ -476,26 +498,6 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
                     </div>
                   ))}
                 </div>
-              </div>
-
-              {/* Channel Type Picklist */}
-              <div className="space-y-2">
-                <Label htmlFor="channel-type">Channel Type</Label>
-                <Select
-                  value={formData.channelType || ""}
-                  onValueChange={(value) => handleInputChange("channelType", value as ChannelType)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select channel type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {channelTypeOptions.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </div>
           </div>

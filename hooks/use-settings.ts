@@ -51,6 +51,20 @@ export interface SafeHarborTimes {
   endTime: string // Time in format "HH:MM AM/PM"
 }
 
+export interface CooldownSettings {
+  duration: number // in minutes
+}
+
+export interface DaypartSettings {
+  startTime: string // Time in format "HH:MM AM/PM"
+  endTime: string // Time in format "HH:MM AM/PM"
+}
+
+export interface ChannelTypeSettings {
+  cooldown: CooldownSettings
+  dayparts: Record<string, DaypartSettings>
+}
+
 export interface Settings {
   autoSchedule: boolean
   safeHarbor: boolean
@@ -66,6 +80,7 @@ export interface Settings {
   mediaInfoDisplay: MediaInfoDisplay // Added mediaInfoDisplay field
   lastViewedChannel?: number
   tvSeason: TVSeasonSettings
+  channelTypeSettings: ChannelTypeSettings // Added channel type settings
 }
 
 const defaultRatingAudioFiles: RatingAudioFiles = {
@@ -81,6 +96,25 @@ const defaultRatingAudioFiles: RatingAudioFiles = {
   R: "",
   "NC-17": "",
   X: "",
+}
+
+const defaultCooldownSettings: CooldownSettings = {
+  duration: 30, // Default cooldown duration in minutes
+}
+
+const defaultDaypartSettings: DaypartSettings = {
+  startTime: "00:00 AM",
+  endTime: "12:00 PM",
+}
+
+const defaultChannelTypeSettings: ChannelTypeSettings = {
+  cooldown: defaultCooldownSettings,
+  dayparts: {
+    morning: defaultDaypartSettings,
+    afternoon: defaultDaypartSettings,
+    evening: defaultDaypartSettings,
+    night: defaultDaypartSettings,
+  },
 }
 
 // Helper functions for date calculations
@@ -248,6 +282,10 @@ const getDefaultSafeHarborTimes = (): SafeHarborTimes => {
   }
 }
 
+const getDefaultChannelTypeSettings = (): ChannelTypeSettings => {
+  return defaultChannelTypeSettings
+}
+
 const defaultSettings: Settings = {
   autoSchedule: false,
   safeHarbor: true,
@@ -262,6 +300,7 @@ const defaultSettings: Settings = {
   showMediaInfo: true,
   mediaInfoDisplay: getDefaultMediaInfoDisplay(), // Added default mediaInfoDisplay
   tvSeason: getDefaultTVSeasonSettings(),
+  channelTypeSettings: defaultChannelTypeSettings, // Added channel type settings
 }
 
 // ---------------------------------------------------------------------------
@@ -288,6 +327,9 @@ export function useSettings() {
         }
         if (!parsedSettings.safeHarborTimes) {
           parsedSettings.safeHarborTimes = getDefaultSafeHarborTimes()
+        }
+        if (!parsedSettings.channelTypeSettings) {
+          parsedSettings.channelTypeSettings = getDefaultChannelTypeSettings()
         }
         setSettings({ ...defaultSettings, ...parsedSettings })
       }
@@ -402,6 +444,33 @@ export function useSettings() {
     [settings],
   )
 
+  const updateChannelTypeSettings = useCallback(
+    (updates: Partial<ChannelTypeSettings>) => {
+      const updatedChannelTypeSettings = { ...settings.channelTypeSettings, ...updates }
+      saveSettings({ ...settings, channelTypeSettings: updatedChannelTypeSettings })
+    },
+    [settings],
+  )
+
+  const updateCooldownSetting = useCallback(
+    <K extends keyof CooldownSettings>(key: K, value: CooldownSettings[K]) => {
+      const updatedCooldown = { ...settings.channelTypeSettings.cooldown, [key]: value }
+      const updatedChannelTypeSettings = { ...settings.channelTypeSettings, cooldown: updatedCooldown }
+      saveSettings({ ...settings, channelTypeSettings: updatedChannelTypeSettings })
+    },
+    [settings],
+  )
+
+  const updateDaypartSetting = useCallback(
+    (daypart: keyof ChannelTypeSettings["dayparts"], field: keyof DaypartSettings, value: string | string[]) => {
+      const updatedDaypart = { ...settings.channelTypeSettings.dayparts[daypart], [field]: value }
+      const updatedDayparts = { ...settings.channelTypeSettings.dayparts, [daypart]: updatedDaypart }
+      const updatedChannelTypeSettings = { ...settings.channelTypeSettings, dayparts: updatedDayparts }
+      saveSettings({ ...settings, channelTypeSettings: updatedChannelTypeSettings })
+    },
+    [settings],
+  )
+
   const resetSettings = () => saveSettings(defaultSettings)
 
   return {
@@ -411,8 +480,11 @@ export function useSettings() {
     updateRatingAudioFile,
     updateLastViewedChannel,
     updateChannelInfoDisplay,
-    updateMediaInfoDisplay, // Exported new function
+    updateMediaInfoDisplay,
     updateSafeHarborTimes,
+    updateChannelTypeSettings, // Exported new function
+    updateCooldownSetting, // Exported new function
+    updateDaypartSetting, // Exported new function
     resetSettings,
   }
 }
