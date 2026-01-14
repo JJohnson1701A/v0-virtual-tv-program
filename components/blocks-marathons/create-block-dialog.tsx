@@ -42,6 +42,16 @@ const occurrenceOptions: { value: BlockOccurrence; label: string }[] = [
   { value: "once", label: "Once" },
 ]
 
+const dayOptions = [
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" },
+]
+
 const durationOptions = [
   { value: 30, label: "30 min" },
   { value: 60, label: "1 hour" },
@@ -110,6 +120,7 @@ export function CreateBlockDialog({ block, onSave, onCancel }: CreateBlockDialog
     overlayPosition: "bottom-right" as OverlayPosition,
     occurrence: "weekly" as BlockOccurrence,
     annualDate: "",
+    dayOfWeek: 1, // Added dayOfWeek field, default to Monday
     startTime: "20:00",
     duration: 60,
     order: "chronological" as BlockOrder,
@@ -129,6 +140,7 @@ export function CreateBlockDialog({ block, onSave, onCancel }: CreateBlockDialog
         overlayPosition: block.overlayPosition,
         occurrence: block.occurrence,
         annualDate: block.annualDate || "",
+        dayOfWeek: block.dayOfWeek ?? 1, // Load dayOfWeek from block
         startTime: block.startTime || "20:00",
         duration: block.duration,
         order: block.order,
@@ -185,6 +197,7 @@ export function CreateBlockDialog({ block, onSave, onCancel }: CreateBlockDialog
       overlayPosition: formData.overlayPosition,
       occurrence: formData.occurrence,
       annualDate: formData.occurrence === "annual" ? formData.annualDate : undefined,
+      dayOfWeek: formData.occurrence === "weekly" ? formData.dayOfWeek : undefined, // Include dayOfWeek for weekly blocks
       startTime: formData.startTime,
       duration: formData.duration,
       order: formData.order,
@@ -346,6 +359,27 @@ export function CreateBlockDialog({ block, onSave, onCancel }: CreateBlockDialog
                 </Select>
               </div>
             </div>
+
+            {formData.occurrence === "weekly" && (
+              <div className="space-y-2">
+                <Label>Day of the Week</Label>
+                <Select
+                  value={formData.dayOfWeek.toString()}
+                  onValueChange={(value) => handleInputChange("dayOfWeek", Number.parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dayOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value.toString()}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {formData.occurrence === "annual" && (
               <div className="space-y-2">

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Edit2Icon, Trash2Icon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import type { Channel } from "@/types/channel"
 import type { ScheduleItem, TimeSlot } from "@/types/schedule"
+import { useBlocksMarathons } from "@/hooks/use-blocks-marathons" // Added to load blocks/marathons
 
 interface ScheduleGridProps {
   channel: Channel
@@ -78,6 +79,7 @@ export function ScheduleGrid({
   const [selectedWeek, setSelectedWeek] = useState(0) // 0 = current week
   const timeSlots = generateTimeSlots()
   const weekOptions = generateWeekOptions()
+  const { blocks, marathons } = useBlocksMarathons() // Load blocks and marathons
 
   const handlePreviousWeek = () => {
     if (selectedWeek > 0) {
@@ -108,7 +110,8 @@ export function ScheduleGrid({
   }
 
   // Truncate title if too long
-  const truncateTitle = (title: string): string => {
+  const truncateTitle = (title: string | undefined): string => {
+    if (!title || typeof title !== "string") return ""
     return title.length > 10 ? `${title.substring(0, 10)}...` : title
   }
 
@@ -135,6 +138,27 @@ export function ScheduleGrid({
 
   const currentWeekOption = weekOptions[selectedWeek]
 
+  const getBlockDetails = (scheduleItem: ScheduleItem) => {
+    if (scheduleItem.mediaType === "block") {
+      const block = blocks.find((b) => b.id === scheduleItem.mediaId)
+      if (block && block.mediaItems.length > 0) {
+        return {
+          blockName: block.name,
+          seriesName: block.mediaItems[0].title,
+        }
+      }
+    } else if (scheduleItem.mediaType === "marathon") {
+      const marathon = marathons.find((m) => m.id === scheduleItem.mediaId)
+      if (marathon && marathon.episodes.length > 0) {
+        return {
+          blockName: marathon.name,
+          seriesName: marathon.episodes[0].title,
+        }
+      }
+    }
+    return null
+  }
+
   return (
     <div className="h-full flex flex-col">
       {/* Header with Week Navigation */}
@@ -154,7 +178,7 @@ export function ScheduleGrid({
               size="sm"
               onClick={handlePreviousWeek}
               disabled={selectedWeek === 0}
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 bg-transparent"
             >
               <ChevronLeftIcon className="h-4 w-4" />
             </Button>
@@ -177,7 +201,7 @@ export function ScheduleGrid({
               size="sm"
               onClick={handleNextWeek}
               disabled={selectedWeek === 52}
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 bg-transparent"
             >
               <ChevronRightIcon className="h-4 w-4" />
             </Button>
@@ -230,7 +254,19 @@ export function ScheduleGrid({
                       >
                         {isFirstSlotOfItem && scheduleItem && (
                           <div className="text-xs font-medium text-white p-1 rounded">
-                            {truncateTitle(scheduleItem.title)}
+                            {scheduleItem.mediaType === "block" || scheduleItem.mediaType === "marathon"
+                              ? (() => {
+                                  const details = getBlockDetails(scheduleItem)
+                                  return details ? (
+                                    <>
+                                      <div>{truncateTitle(details.blockName)}</div>
+                                      <div className="text-[10px] opacity-90">{truncateTitle(details.seriesName)}</div>
+                                    </>
+                                  ) : (
+                                    truncateTitle(scheduleItem.title)
+                                  )
+                                })()
+                              : truncateTitle(scheduleItem.title)}
                           </div>
                         )}
 

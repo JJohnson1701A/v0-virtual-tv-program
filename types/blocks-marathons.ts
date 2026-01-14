@@ -33,6 +33,7 @@ export interface Block {
   overlayPosition: OverlayPosition
   occurrence: BlockOccurrence
   annualDate?: string // For annual occurrence
+  dayOfWeek?: number // Added for weekly occurrence (0=Sunday, 1=Monday, etc.)
   startTime?: string // Time block starts (e.g., "08:00 PM")
   duration: number // in minutes
   order: BlockOrder
@@ -52,6 +53,8 @@ export interface Marathon {
   overlayPosition: OverlayPosition
   occurrence: BlockOccurrence
   annualDate?: string // For annual occurrence
+  dayOfWeek?: number // Added for weekly occurrence (0=Sunday, 1=Monday, etc.)
+  startTime?: string // Added time for marathon starts
   duration: number // in minutes
   channelId?: string
   fillerSource: MarathonFillerSource
