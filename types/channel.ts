@@ -1,5 +1,18 @@
 export type OverlayPosition = "bottom-right" | "bottom-left" | "top-right" | "top-left"
 
+export type ChannelType =
+  | "Over-the-Air (OTA)"
+  | "Basic Cable"
+  | "Premium Cable"
+  | "Movie Channel"
+  | "Kids Channel"
+  | "Sports Channel"
+  | "Music/Variety Channel"
+  | "Faith Channel"
+  | "News/Talk Channel"
+  | "On-Demand/Playlist Channel"
+  | "FAST/Streaming Linear Channel"
+
 export interface Channel {
   id: string
   name: string
@@ -16,5 +29,10 @@ export interface Channel {
   ratingContentWarning: boolean
   assignedMedia: string[] // Array of media IDs assigned to this channel
   assignedSeasons: Record<string, number[]> // mediaId -> array of season numbers
+  autoSchedulerAudience?: string[]
+  autoSchedulerTVGenre?: string[]
+  autoSchedulerMovieGenre?: string[]
+  autoSchedulerShowCategory?: string[]
+  channelType?: ChannelType
   dateCreated: string
 }

@@ -185,6 +185,68 @@ const trailerGenreOptions = [
   "Western",
 ]
 
+const tvGenreOptions = [
+  "Action",
+  "Adventure",
+  "Animation",
+  "Anime",
+  "Children/Kids",
+  "Comedy",
+  "Crime",
+  "Documentary",
+  "Docuseries",
+  "Drama",
+  "Educational",
+  "Faith/Religious",
+  "Fantasy",
+  "Game Show",
+  "Historical/Period",
+  "Horror",
+  "Lifestyle (Food, Travel, Home)",
+  "Medical",
+  "Mystery",
+  "News",
+  "Political",
+  "Reality",
+  "Romance",
+  "Science Fiction",
+  "Sitcom",
+  "Sports",
+  "Talk Show",
+  "Thriller",
+  "True Crime",
+  "Variety",
+  "Western",
+]
+
+const movieGenreOptions = [
+  "Action",
+  "Adventure",
+  "Animation",
+  "Anime",
+  "Biographical/Biopic",
+  "Comedy",
+  "Crime",
+  "Documentary",
+  "Drama",
+  "Epic",
+  "Faith/Religious",
+  "Fantasy",
+  "Historical/Period",
+  "Horror",
+  "Independent/Art House",
+  "Martial Arts",
+  "Musical",
+  "Mystery",
+  "Romance",
+  "Science Fiction",
+  "Sports",
+  "Superhero",
+  "Thriller",
+  "War",
+  "Western",
+]
+
 const seasonsOptions = [
   { header: "Any Time", value: "Any Time" },
   { header: "School/Broadcast Year", value: "School Year (09-01 to 05-31)" },
@@ -390,6 +452,7 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
   }
 
   const isTVShow = editedItem.type === "tvshows"
+  const isMovie = editedItem.type === "movies"
   const isMusicVideo = editedItem.type === "musicvideos"
   const isFiller = editedItem.type === "filler"
   const isCommercial = editedItem.fillerType === "commercial"
@@ -680,6 +743,38 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                             </SelectTrigger>
                             <SelectContent>
                               {getFillerGenreOptions().map((genre) => (
+                                <SelectItem key={genre} value={genre}>
+                                  {genre}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : isMovie ? (
+                          <Select
+                            value={editedItem.genre || ""}
+                            onValueChange={(value) => handleChange("genre", value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select movie genre" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {movieGenreOptions.map((genre) => (
+                                <SelectItem key={genre} value={genre}>
+                                  {genre}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : isTVShow ? (
+                          <Select
+                            value={editedItem.genre || ""}
+                            onValueChange={(value) => handleChange("genre", value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select TV genre" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {tvGenreOptions.map((genre) => (
                                 <SelectItem key={genre} value={genre}>
                                   {genre}
                                 </SelectItem>

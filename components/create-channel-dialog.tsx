@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
 import { FileUpload } from "@/components/file-upload"
 import { TimeSelect } from "@/components/time-select"
 import { MediaSelector } from "@/components/media-selector"
-import type { Channel, OverlayPosition } from "@/types/channel"
+import type { Channel, OverlayPosition, ChannelType } from "@/types/channel"
 import type { MediaItem } from "@/types/media"
 
 interface CreateChannelDialogProps {
@@ -52,6 +53,108 @@ const overlayPositions: { value: OverlayPosition; label: string }[] = [
   { value: "top-left", label: "Top Left" },
 ]
 
+const audienceOptions = ["family", "adult", "senior", "baby", "toddler", "boy", "girl", "teen", "young adult"]
+
+const tvGenreOptions = [
+  "Action",
+  "Adventure",
+  "Animation",
+  "Anime",
+  "Children/Kids",
+  "Comedy",
+  "Crime",
+  "Documentary",
+  "Docuseries",
+  "Drama",
+  "Educational",
+  "Faith/Religious",
+  "Fantasy",
+  "Game Show",
+  "Historical/Period",
+  "Horror",
+  "Lifestyle (Food, Travel, Home)",
+  "Medical",
+  "Mystery",
+  "News",
+  "Political",
+  "Reality",
+  "Romance",
+  "Science Fiction",
+  "Sitcom",
+  "Sports",
+  "Talk Show",
+  "Thriller",
+  "True Crime",
+  "Variety",
+  "Western",
+]
+
+const movieGenreOptions = [
+  "Action",
+  "Adventure",
+  "Animation",
+  "Anime",
+  "Biographical/Biopic",
+  "Comedy",
+  "Crime",
+  "Documentary",
+  "Drama",
+  "Epic",
+  "Faith/Religious",
+  "Fantasy",
+  "Historical/Period",
+  "Horror",
+  "Independent/Art House",
+  "Martial Arts",
+  "Musical",
+  "Mystery",
+  "Romance",
+  "Science Fiction",
+  "Sports",
+  "Superhero",
+  "Thriller",
+  "War",
+  "Western",
+]
+
+const showCategoryOptions = [
+  "kids cartoon",
+  "kids live",
+  "kids educational",
+  "sitcom",
+  "drama",
+  "soap opera",
+  "sketch comedy",
+  "variety",
+  "animation (general/adult)",
+  "anime",
+  "horror",
+  "romance",
+  "sci-fi/fantasy",
+  "classic/retro",
+  "rerun",
+  "concert",
+  "sports",
+  "talk",
+  "late-night",
+  "game show",
+  "reality/unscripted",
+]
+
+const channelTypeOptions: ChannelType[] = [
+  "Over-the-Air (OTA)",
+  "Basic Cable",
+  "Premium Cable",
+  "Movie Channel",
+  "Kids Channel",
+  "Sports Channel",
+  "Music/Variety Channel",
+  "Faith Channel",
+  "News/Talk Channel",
+  "On-Demand/Playlist Channel",
+  "FAST/Streaming Linear Channel",
+]
+
 export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannelDialogProps) {
   const [formData, setFormData] = useState({
     name: "",
@@ -66,8 +169,13 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
     signOnTime: "6:00 AM",
     signOffVideo: "",
     ratingContentWarning: false,
-    assignedMedia: [] as string[], // Array of media IDs assigned to this channel
-    assignedSeasons: {} as Record<string, number[]>, // mediaId -> array of season numbers
+    assignedMedia: [] as string[],
+    assignedSeasons: {} as Record<string, number[]>,
+    autoSchedulerAudience: [] as string[],
+    autoSchedulerTVGenre: [] as string[],
+    autoSchedulerMovieGenre: [] as string[],
+    autoSchedulerShowCategory: [] as string[],
+    channelType: undefined as ChannelType | undefined,
   })
 
   useEffect(() => {
@@ -87,12 +195,61 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
         ratingContentWarning: channel.ratingContentWarning || false,
         assignedMedia: channel.assignedMedia || [],
         assignedSeasons: channel.assignedSeasons || {},
+        autoSchedulerAudience: channel.autoSchedulerAudience || [],
+        autoSchedulerTVGenre: channel.autoSchedulerTVGenre || [],
+        autoSchedulerMovieGenre: channel.autoSchedulerMovieGenre || [],
+        autoSchedulerShowCategory: channel.autoSchedulerShowCategory || [],
+        channelType: channel.channelType,
       })
     }
   }, [channel])
 
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleAudienceToggle = (audience: string, checked: boolean) => {
+    if (checked) {
+      handleInputChange("autoSchedulerAudience", [...formData.autoSchedulerAudience, audience])
+    } else {
+      handleInputChange(
+        "autoSchedulerAudience",
+        formData.autoSchedulerAudience.filter((a) => a !== audience),
+      )
+    }
+  }
+
+  const handleTVGenreToggle = (genre: string, checked: boolean) => {
+    if (checked) {
+      handleInputChange("autoSchedulerTVGenre", [...formData.autoSchedulerTVGenre, genre])
+    } else {
+      handleInputChange(
+        "autoSchedulerTVGenre",
+        formData.autoSchedulerTVGenre.filter((g) => g !== genre),
+      )
+    }
+  }
+
+  const handleMovieGenreToggle = (genre: string, checked: boolean) => {
+    if (checked) {
+      handleInputChange("autoSchedulerMovieGenre", [...formData.autoSchedulerMovieGenre, genre])
+    } else {
+      handleInputChange(
+        "autoSchedulerMovieGenre",
+        formData.autoSchedulerMovieGenre.filter((g) => g !== genre),
+      )
+    }
+  }
+
+  const handleShowCategoryToggle = (category: string, checked: boolean) => {
+    if (checked) {
+      handleInputChange("autoSchedulerShowCategory", [...formData.autoSchedulerShowCategory, category])
+    } else {
+      handleInputChange(
+        "autoSchedulerShowCategory",
+        formData.autoSchedulerShowCategory.filter((c) => c !== category),
+      )
+    }
   }
 
   const handleMediaSelection = (selectedMedia: MediaItem[], selectedSeasons?: Record<string, number[]>) => {
@@ -119,6 +276,11 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
       ratingContentWarning: formData.ratingContentWarning,
       assignedMedia: formData.assignedMedia,
       assignedSeasons: formData.assignedSeasons,
+      autoSchedulerAudience: formData.autoSchedulerAudience,
+      autoSchedulerTVGenre: formData.autoSchedulerTVGenre,
+      autoSchedulerMovieGenre: formData.autoSchedulerMovieGenre,
+      autoSchedulerShowCategory: formData.autoSchedulerShowCategory,
+      channelType: formData.channelType,
     }
     onSave(channelData)
   }
@@ -230,6 +392,112 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
               onSelectionChange={handleMediaSelection}
               allowMultiple={true}
             />
+
+            {/* Auto-Scheduler Defaults */}
+            <div className="space-y-4 mt-6">
+              <div>
+                <Label className="text-base font-medium">Auto-Scheduler Defaults</Label>
+                <p className="text-sm text-muted-foreground">
+                  Set default preferences for the auto-scheduler when filling blank timeslots on this channel.
+                </p>
+              </div>
+
+              {/* Audience Multi-Select */}
+              <div className="space-y-2">
+                <Label>Audience</Label>
+                <div className="border rounded-md p-3 max-h-32 overflow-y-auto space-y-2">
+                  {audienceOptions.map((audience) => (
+                    <div key={audience} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`audience-${audience}`}
+                        checked={formData.autoSchedulerAudience.includes(audience)}
+                        onCheckedChange={(checked) => handleAudienceToggle(audience, checked as boolean)}
+                      />
+                      <label htmlFor={`audience-${audience}`} className="text-sm capitalize cursor-pointer">
+                        {audience}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* TV Genre Multi-Select */}
+              <div className="space-y-2">
+                <Label>TV Genre</Label>
+                <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
+                  {tvGenreOptions.map((genre) => (
+                    <div key={genre} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`tv-genre-${genre}`}
+                        checked={formData.autoSchedulerTVGenre.includes(genre)}
+                        onCheckedChange={(checked) => handleTVGenreToggle(genre, checked as boolean)}
+                      />
+                      <label htmlFor={`tv-genre-${genre}`} className="text-sm cursor-pointer">
+                        {genre}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Movie Genre Multi-Select */}
+              <div className="space-y-2">
+                <Label>Movie Genre</Label>
+                <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
+                  {movieGenreOptions.map((genre) => (
+                    <div key={genre} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`movie-genre-${genre}`}
+                        checked={formData.autoSchedulerMovieGenre.includes(genre)}
+                        onCheckedChange={(checked) => handleMovieGenreToggle(genre, checked as boolean)}
+                      />
+                      <label htmlFor={`movie-genre-${genre}`} className="text-sm cursor-pointer">
+                        {genre}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Show Category Multi-Select */}
+              <div className="space-y-2">
+                <Label>Show Category</Label>
+                <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
+                  {showCategoryOptions.map((category) => (
+                    <div key={category} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`show-category-${category}`}
+                        checked={formData.autoSchedulerShowCategory.includes(category)}
+                        onCheckedChange={(checked) => handleShowCategoryToggle(category, checked as boolean)}
+                      />
+                      <label htmlFor={`show-category-${category}`} className="text-sm capitalize cursor-pointer">
+                        {category}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Channel Type Picklist */}
+              <div className="space-y-2">
+                <Label htmlFor="channel-type">Channel Type</Label>
+                <Select
+                  value={formData.channelType || ""}
+                  onValueChange={(value) => handleInputChange("channelType", value as ChannelType)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select channel type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {channelTypeOptions.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
 
           <Separator />
