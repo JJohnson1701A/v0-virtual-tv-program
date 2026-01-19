@@ -60,8 +60,7 @@ export interface DaypartSettings {
   genre: string[]
 }
 
-export interface ChannelTypeSettings {
-  channelType: string
+export interface SingleChannelTypeSettings {
   cooldown: CooldownSettings
   dayparts: {
     earlyMorning: DaypartSettings
@@ -74,6 +73,11 @@ export interface ChannelTypeSettings {
     lateNight: DaypartSettings
     overnight: DaypartSettings
   }
+}
+
+export interface ChannelTypeSettings {
+  selectedChannelType: string
+  channelTypes: Record<string, SingleChannelTypeSettings>
 }
 
 export interface Settings {
@@ -277,9 +281,8 @@ const getDefaultCooldownSettings = (): CooldownSettings => {
   }
 }
 
-const getDefaultChannelTypeSettings = (): ChannelTypeSettings => {
+const getDefaultSingleChannelTypeSettings = (): SingleChannelTypeSettings => {
   return {
-    channelType: "Broadcast / OTA",
     cooldown: getDefaultCooldownSettings(),
     dayparts: {
       earlyMorning: getDefaultDaypartSettings(),
@@ -294,6 +297,15 @@ const getDefaultChannelTypeSettings = (): ChannelTypeSettings => {
     },
   }
 }
+
+const getDefaultChannelTypeSettings = (): ChannelTypeSettings => {
+  return {
+    selectedChannelType: "Broadcast / OTA",
+    channelTypes: {},
+  }
+}
+
+export { getDefaultSingleChannelTypeSettings }
 
 export const defaultSettings: Settings = {
   autoSchedule: false,

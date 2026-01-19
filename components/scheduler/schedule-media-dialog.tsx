@@ -338,39 +338,65 @@ export function ScheduleMediaDialog({
     }
   }
 
-  const formatMediaDisplay = (media: MediaItem | Block | Marathon) => {
-    if ("type" in media) {
-      // It's a MediaItem
-      if (media.type === "movies") {
-        return `${media.title} • ${media.year} • ${media.runtime || 0} min • ${media.rating || "NR"}`
-      } else if (media.type === "tvshows") {
-        // For channel-specific TV shows, show assigned seasons
-        if (selectedMediaType === "channel-specific" && channel.assignedSeasons?.[media.id]) {
-          const assignedSeasons = channel.assignedSeasons[media.id]
-          const seasonText =
-            assignedSeasons.length === 1 ? `Season ${assignedSeasons[0]}` : `Seasons ${assignedSeasons.join(", ")}`
+  // Check if item is a Block
+  const isBlock = (media: MediaItem | Block | Marathon): media is Block => {
+    return "mediaItems" in media && !("type" in media)
+  }
 
-          // Calculate episodes in assigned seasons
-          const assignedEpisodes = media.episodes?.filter((ep) => assignedSeasons.includes(ep.seasonNumber)).length || 0
+  // Check if item is a Marathon
+  const isMarathon = (media: MediaItem | Block | Marathon): media is Marathon => {
+    return "episodes" in media && !("type" in media) && !("mediaItems" in media)
+  }
 
-          return `${media.title} • ${media.runtime || 0} min • ${media.rating || "NR"} • ${seasonText}, ${assignedEpisodes} Episodes`
-        } else {
-          const seasons = Math.max(...(media.episodes?.map((ep) => ep.seasonNumber) || [1]))
-          const episodes = media.episodes?.length || 0
-          return `${media.title} • ${media.runtime || 0} min • ${media.rating || "NR"} • ${seasons} Season${
-            seasons > 1 ? "s" : ""
-          }, ${episodes} Episodes`
-        }
-      } else if (media.type === "musicvideos") {
-        return `${media.bandName || "Unknown Artist"} - ${media.songTitle || media.title} • ${media.year} • ${media.genre || "Unknown Genre"}`
-      }
-      return `${media.title} • ${media.year} • ${media.runtime || 0} min • ${media.rating || "NR"}`
-    } else {
-      // It's a Block or Marathon
-      const type = "mediaItems" in media ? "Block" : "Marathon"
-      const itemCount = "mediaItems" in media ? media.mediaItems.length : media.episodes.length
-      return `${media.name} • ${type} • ${media.duration} min • ${itemCount} items • ${media.occurrence}`
+  // Format duration for display
+  const formatDuration = (minutes: number): string => {
+    if (minutes < 120) {
+      return `${minutes} min`
     }
+    const hours = minutes / 60
+    return `${hours % 1 === 0 ? hours : hours.toFixed(1)} hours`
+  }
+
+  const formatMediaDisplay = (media: MediaItem | Block | Marathon) => {
+    // Check for Block first
+    if (isBlock(media)) {
+      const itemCount = media.mediaItems?.length || 0
+      const rating = media.mediaItems?.[0]?.title ? "TV-G" : "NR" // Default rating
+      return `${media.name || "Unnamed Block"} (Block) • ${itemCount} show${itemCount !== 1 ? "s" : ""} • ${formatDuration(media.duration)} • ${rating}`
+    }
+    
+    // Check for Marathon
+    if (isMarathon(media)) {
+      const episodeCount = media.episodes?.length || 0
+      const rating = "TV-G" // Default rating for marathons
+      return `${media.name || "Unnamed Marathon"} (Marathon) • ${episodeCount} episode${episodeCount !== 1 ? "s" : ""} • ${formatDuration(media.duration)} • ${rating}`
+    }
+    
+    // It's a MediaItem
+    if (media.type === "movies") {
+      return `${media.title} • ${media.year} • ${media.runtime || 0} min • ${media.rating || "NR"}`
+    } else if (media.type === "tvshows") {
+      // For channel-specific TV shows, show assigned seasons
+      if (selectedMediaType === "channel-specific" && channel.assignedSeasons?.[media.id]) {
+        const assignedSeasons = channel.assignedSeasons[media.id]
+        const seasonText =
+          assignedSeasons.length === 1 ? `Season ${assignedSeasons[0]}` : `Seasons ${assignedSeasons.join(", ")}`
+
+        // Calculate episodes in assigned seasons
+        const assignedEpisodes = media.episodes?.filter((ep) => assignedSeasons.includes(ep.seasonNumber)).length || 0
+
+        return `${media.title} • ${media.runtime || 0} min • ${media.rating || "NR"} • ${seasonText}, ${assignedEpisodes} Episodes`
+      } else {
+        const seasons = Math.max(...(media.episodes?.map((ep) => ep.seasonNumber) || [1]))
+        const episodes = media.episodes?.length || 0
+        return `${media.title} • ${media.runtime || 0} min • ${media.rating || "NR"} • ${seasons} Season${
+          seasons > 1 ? "s" : ""
+        }, ${episodes} Episodes`
+      }
+    } else if (media.type === "musicvideos") {
+      return `${media.bandName || "Unknown Artist"} - ${media.songTitle || media.title} • ${media.year} • ${media.genre || "Unknown Genre"}`
+    }
+    return `${media.title} • ${media.year} • ${media.runtime || 0} min • ${media.rating || "NR"}`
   }
 
   const getSchedulingNote = (media: MediaItem | Block | Marathon | null): string => {
@@ -433,7 +459,13 @@ export function ScheduleMediaDialog({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {mediaList.map((media) => (
+                    {mediaList
+                      .sort((a, b) => {
+                        const nameA = isBlock(a) || isMarathon(a) ? a.name : a.title
+                        const nameB = isBlock(b) || isMarathon(b) ? b.name : b.title
+                        return (nameA || "").localeCompare(nameB || "")
+                      })
+                      .map((media) => (
                       <div
                         key={media.id}
                         className={`p-3 rounded border cursor-pointer transition-colors ${
@@ -441,19 +473,33 @@ export function ScheduleMediaDialog({
                         }`}
                         onClick={() => setSelectedMedia(media)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
+                        <div className="flex items-center gap-3">
+                          {/* Logo for blocks/marathons */}
+                          {(isBlock(media) || isMarathon(media)) && (
+                            <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
+                              {media.logo ? (
+                                <img 
+                                  src={media.logo || "/placeholder.svg"} 
+                                  alt={media.name || "Logo"} 
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                                  No Logo
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex-1">
                             <div className="font-medium text-sm">
-                              {"type" in media ? (
+                              {isBlock(media) || isMarathon(media) ? (
+                                formatMediaDisplay(media)
+                              ) : (
                                 <>
                                   {media.type === "movies" && "Movie"} {media.type === "tvshows" && "TV Show"}{" "}
                                   {media.type === "musicvideos" && "Music Video"}{" "}
                                   {media.type === "podcasts" && "Podcast"} {media.type === "filler" && "Filler"}{" "}
                                   {media.type === "livestreams" && "Livestream"} • {formatMediaDisplay(media)}
-                                </>
-                              ) : (
-                                <>
-                                  {"mediaItems" in media ? "Block" : "Marathon"} • {formatMediaDisplay(media)}
                                 </>
                               )}
                             </div>

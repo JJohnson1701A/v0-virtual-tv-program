@@ -26,9 +26,13 @@ export function SettingsPanel() {
     updateChannelInfoDisplay,
     updateMediaInfoDisplay,
     updateSafeHarborTimes,
-    updateChannelTypeSettings, // Added new functions
+    updateChannelTypeSettings,
+    updateSelectedChannelType,
     updateCooldownSetting,
     updateDaypartSetting,
+    getCurrentChannelTypeSettings,
+    saveCurrentChannelTypeSettings,
+    clearCurrentChannelTypeSettings,
   } = useSettings()
   const { displays, isLoading: displaysLoading, refreshDisplays } = useDisplays()
   const { channels } = useChannels()
@@ -158,17 +162,76 @@ export function SettingsPanel() {
 
   const audienceOptions = ["family", "adult", "senior", "baby", "toddler", "boy", "girl", "teen", "young adult"]
 
-  const genreOptions = [
+  // Base genres for all media types
+  const baseGenreOptions = [
     "Action",
     "Adventure",
     "Animation",
+    "Children/Kids",
     "Comedy",
+    "Crime",
     "Drama",
+    "Fantasy",
+    "Historical/Period",
     "Horror",
+    "Mystery",
     "Romance",
-    "Sci-Fi",
+    "Science Fiction",
     "Thriller",
+    "War",
+    "Western",
   ]
+
+  // Additional genres for TV Shows
+  const tvShowGenres = [
+    "Anime",
+    "Competition",
+    "Documentary",
+    "Docuseries",
+    "Educational",
+    "Faith/Religious",
+    "Game Show",
+    "Lifestyle (food, travel, home)",
+    "Medical",
+    "News",
+    "Political",
+    "Reality",
+    "Sitcom",
+    "Sports",
+    "Talk Show",
+    "True Crime",
+    "Variety Show",
+  ]
+
+  // Additional genres for Movies
+  const movieGenres = [
+    "Art House",
+    "Concert",
+    "Dance/Performance",
+    "Epic",
+    "Musical",
+    "Road Movie",
+    "Silent",
+  ]
+
+  // Function to get contextual genre options based on selected media types in a daypart
+  const getGenreOptionsForDaypart = (daypartKey: string): string[] => {
+    const daypartSettings = getDaypartSettings(daypartKey)
+    const selectedMediaTypes = daypartSettings.mediaTypes || []
+
+    let genres = [...baseGenreOptions]
+
+    if (selectedMediaTypes.includes("TV Show")) {
+      genres = [...genres, ...tvShowGenres]
+    }
+
+    if (selectedMediaTypes.includes("Movie")) {
+      genres = [...genres, ...movieGenres]
+    }
+
+    // Sort alphabetically and remove duplicates
+    return [...new Set(genres)].sort((a, b) => a.localeCompare(b))
+  }
 
   const dayparts = [
     { key: "earlyMorning", label: "Early Morning (5:00 AM - 9:00 AM)" },
@@ -182,9 +245,31 @@ export function SettingsPanel() {
     { key: "overnight", label: "Overnight (12:00 AM - 5:00 AM)" },
   ]
 
+  const getDaypartSettings = (daypart: string) => {
+    const currentSettings = getCurrentChannelTypeSettings()
+    if (!currentSettings?.dayparts) return { mediaTypes: [], audience: [], genre: [] }
+    const dp = currentSettings.dayparts[daypart as keyof typeof currentSettings.dayparts]
+    if (!dp) return { mediaTypes: [], audience: [], genre: [] }
+    return {
+      mediaTypes: dp.mediaTypes || [],
+      audience: dp.audience || [],
+      genre: dp.genre || [],
+    }
+  }
+
+  const getCooldownSettings = () => {
+    const currentSettings = getCurrentChannelTypeSettings()
+    return currentSettings?.cooldown || {
+      movies: "Same Day only",
+      tvShow: "Same Day only",
+      tvEpisodes: "Same Day only",
+      filler: "Same Day only",
+      musicVideos: "Same Day only",
+    }
+  }
+
   const handleDaypartMediaTypeToggle = (daypart: string, mediaType: string, checked: boolean) => {
-    const currentMediaTypes =
-      settings.channelTypeSettings.dayparts[daypart as keyof typeof settings.channelTypeSettings.dayparts].mediaTypes
+    const currentMediaTypes = getDaypartSettings(daypart).mediaTypes
     if (checked) {
       updateDaypartSetting(daypart as keyof typeof settings.channelTypeSettings.dayparts, "mediaTypes", [
         ...currentMediaTypes,
@@ -200,8 +285,7 @@ export function SettingsPanel() {
   }
 
   const handleDaypartAudienceToggle = (daypart: string, audience: string, checked: boolean) => {
-    const currentAudience =
-      settings.channelTypeSettings.dayparts[daypart as keyof typeof settings.channelTypeSettings.dayparts].audience
+    const currentAudience = getDaypartSettings(daypart).audience
     if (checked) {
       updateDaypartSetting(daypart as keyof typeof settings.channelTypeSettings.dayparts, "audience", [
         ...currentAudience,
@@ -217,8 +301,7 @@ export function SettingsPanel() {
   }
 
   const handleDaypartGenreToggle = (daypart: string, genre: string, checked: boolean) => {
-    const currentGenre =
-      settings.channelTypeSettings.dayparts[daypart as keyof typeof settings.channelTypeSettings.dayparts].genre
+    const currentGenre = getDaypartSettings(daypart).genre
     if (checked) {
       updateDaypartSetting(daypart as keyof typeof settings.channelTypeSettings.dayparts, "genre", [
         ...currentGenre,
@@ -561,8 +644,8 @@ export function SettingsPanel() {
             <div className="space-y-2">
               <Label htmlFor="channel-type-select">Channel Type</Label>
               <Select
-                value={settings.channelTypeSettings.channelType}
-                onValueChange={(value) => updateChannelTypeSettings({ channelType: value })}
+                value={settings.channelTypeSettings.selectedChannelType}
+                onValueChange={(value) => updateSelectedChannelType(value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select channel type" />
@@ -575,6 +658,9 @@ export function SettingsPanel() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-sm text-muted-foreground">
+                Each channel type has its own settings. Select a type to configure its auto-scheduler behavior.
+              </p>
             </div>
 
             <Separator />
@@ -592,7 +678,7 @@ export function SettingsPanel() {
                 <div className="space-y-2">
                   <Label htmlFor="cooldown-movies">Movies</Label>
                   <Select
-                    value={settings.channelTypeSettings.cooldown.movies}
+                    value={getCooldownSettings().movies}
                     onValueChange={(value) => updateCooldownSetting("movies", value)}
                   >
                     <SelectTrigger>
@@ -611,7 +697,7 @@ export function SettingsPanel() {
                 <div className="space-y-2">
                   <Label htmlFor="cooldown-tv-show">TV Show</Label>
                   <Select
-                    value={settings.channelTypeSettings.cooldown.tvShow}
+                    value={getCooldownSettings().tvShow}
                     onValueChange={(value) => updateCooldownSetting("tvShow", value)}
                   >
                     <SelectTrigger>
@@ -630,7 +716,7 @@ export function SettingsPanel() {
                 <div className="space-y-2">
                   <Label htmlFor="cooldown-tv-episodes">TV Episodes</Label>
                   <Select
-                    value={settings.channelTypeSettings.cooldown.tvEpisodes}
+                    value={getCooldownSettings().tvEpisodes}
                     onValueChange={(value) => updateCooldownSetting("tvEpisodes", value)}
                   >
                     <SelectTrigger>
@@ -649,7 +735,7 @@ export function SettingsPanel() {
                 <div className="space-y-2">
                   <Label htmlFor="cooldown-filler">Filler</Label>
                   <Select
-                    value={settings.channelTypeSettings.cooldown.filler}
+                    value={getCooldownSettings().filler}
                     onValueChange={(value) => updateCooldownSetting("filler", value)}
                   >
                     <SelectTrigger>
@@ -668,7 +754,7 @@ export function SettingsPanel() {
                 <div className="space-y-2">
                   <Label htmlFor="cooldown-music-videos">Music Videos</Label>
                   <Select
-                    value={settings.channelTypeSettings.cooldown.musicVideos}
+                    value={getCooldownSettings().musicVideos}
                     onValueChange={(value) => updateCooldownSetting("musicVideos", value)}
                   >
                     <SelectTrigger>
@@ -710,9 +796,7 @@ export function SettingsPanel() {
                           <div key={mediaType} className="flex items-center space-x-2">
                             <Checkbox
                               id={`${daypart.key}-mediatype-${mediaType}`}
-                              checked={settings.channelTypeSettings.dayparts[
-                                daypart.key as keyof typeof settings.channelTypeSettings.dayparts
-                              ].mediaTypes.includes(mediaType)}
+                              checked={getDaypartSettings(daypart.key).mediaTypes.includes(mediaType)}
                               onCheckedChange={(checked) =>
                                 handleDaypartMediaTypeToggle(daypart.key, mediaType, checked as boolean)
                               }
@@ -733,9 +817,7 @@ export function SettingsPanel() {
                           <div key={audience} className="flex items-center space-x-2">
                             <Checkbox
                               id={`${daypart.key}-audience-${audience}`}
-                              checked={settings.channelTypeSettings.dayparts[
-                                daypart.key as keyof typeof settings.channelTypeSettings.dayparts
-                              ].audience.includes(audience)}
+                              checked={getDaypartSettings(daypart.key).audience.includes(audience)}
                               onCheckedChange={(checked) =>
                                 handleDaypartAudienceToggle(daypart.key, audience, checked as boolean)
                               }
@@ -755,13 +837,11 @@ export function SettingsPanel() {
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Genre</Label>
                       <div className="border rounded-md p-2 max-h-32 overflow-y-auto space-y-1">
-                        {genreOptions.map((genre) => (
+                        {getGenreOptionsForDaypart(daypart.key).map((genre) => (
                           <div key={genre} className="flex items-center space-x-2">
                             <Checkbox
                               id={`${daypart.key}-genre-${genre}`}
-                              checked={settings.channelTypeSettings.dayparts[
-                                daypart.key as keyof typeof settings.channelTypeSettings.dayparts
-                              ].genre.includes(genre)}
+                              checked={getDaypartSettings(daypart.key).genre.includes(genre)}
                               onCheckedChange={(checked) =>
                                 handleDaypartGenreToggle(daypart.key, genre, checked as boolean)
                               }
@@ -777,6 +857,25 @@ export function SettingsPanel() {
                 </div>
               ))}
             </div>
+
+            <Separator />
+
+            {/* Save and Clear Buttons */}
+            <div className="flex justify-end gap-4">
+              <Button
+                variant="outline"
+                onClick={clearCurrentChannelTypeSettings}
+                className="bg-transparent"
+              >
+                Clear Settings
+              </Button>
+              <Button onClick={saveCurrentChannelTypeSettings}>
+                Save Settings for {settings.channelTypeSettings.selectedChannelType}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground text-right">
+              Save will store settings for this channel type. Clear will reset to defaults.
+            </p>
           </CardContent>
         </Card>
 

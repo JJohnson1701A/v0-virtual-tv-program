@@ -120,7 +120,11 @@ export function ScheduleGrid({
     for (const item of scheduleItems) {
       if (item.dayOfWeek === dayIndex) {
         const itemStartIndex = timeSlots.findIndex((slot) => slot.time12 === item.startTime)
-        const itemSpan = getItemSpan(item.runtime || 30)
+        // Use block/marathon duration for those types, otherwise use runtime
+        const duration = (item.mediaType === "block" || item.mediaType === "marathon") 
+          ? getBlockDuration(item) 
+          : (item.runtime || 30)
+        const itemSpan = Math.ceil(duration / 30)
         if (timeIndex >= itemStartIndex && timeIndex < itemStartIndex + itemSpan) {
           return item
         }
@@ -138,21 +142,81 @@ export function ScheduleGrid({
 
   const currentWeekOption = weekOptions[selectedWeek]
 
-  const getBlockDetails = (scheduleItem: ScheduleItem) => {
+  // Get block/marathon details for a specific slot index within the block
+  const getBlockDetailsForSlot = (scheduleItem: ScheduleItem, slotIndexWithinBlock: number) => {
     if (scheduleItem.mediaType === "block") {
       const block = blocks.find((b) => b.id === scheduleItem.mediaId)
       if (block && block.mediaItems.length > 0) {
+        // Calculate which media item should show in this slot based on runtime
+        let accumulatedSlots = 0
+        for (const mediaItem of block.mediaItems) {
+          const itemSlots = Math.ceil(mediaItem.runtime / 30)
+          if (slotIndexWithinBlock < accumulatedSlots + itemSlots) {
+            return {
+              blockName: block.name,
+              seriesName: mediaItem.title,
+              duration: block.duration,
+            }
+          }
+          accumulatedSlots += itemSlots
+        }
+        // Fallback to last item if we went past the end
+        const lastItem = block.mediaItems[block.mediaItems.length - 1]
         return {
           blockName: block.name,
-          seriesName: block.mediaItems[0].title,
+          seriesName: lastItem?.title || "Unknown",
+          duration: block.duration,
         }
       }
     } else if (scheduleItem.mediaType === "marathon") {
       const marathon = marathons.find((m) => m.id === scheduleItem.mediaId)
       if (marathon && marathon.episodes.length > 0) {
+        // Calculate which episode should show in this slot based on runtime
+        let accumulatedSlots = 0
+        for (const episode of marathon.episodes) {
+          const episodeSlots = Math.ceil(episode.runtime / 30)
+          if (slotIndexWithinBlock < accumulatedSlots + episodeSlots) {
+            return {
+              blockName: marathon.name,
+              seriesName: episode.title,
+              duration: marathon.duration,
+            }
+          }
+          accumulatedSlots += episodeSlots
+        }
+        // Fallback to last episode if we went past the end
+        const lastEpisode = marathon.episodes[marathon.episodes.length - 1]
         return {
           blockName: marathon.name,
-          seriesName: marathon.episodes[0].title,
+          seriesName: lastEpisode?.title || "Unknown",
+          duration: marathon.duration,
+        }
+      }
+    }
+    return null
+  }
+
+  // Get the block/marathon duration for span calculation
+  const getBlockDuration = (scheduleItem: ScheduleItem): number => {
+    if (scheduleItem.mediaType === "block") {
+      const block = blocks.find((b) => b.id === scheduleItem.mediaId)
+      return block?.duration || scheduleItem.runtime || 30
+    } else if (scheduleItem.mediaType === "marathon") {
+      const marathon = marathons.find((m) => m.id === scheduleItem.mediaId)
+      return marathon?.duration || scheduleItem.runtime || 30
+    }
+    return scheduleItem.runtime || 30
+  }
+
+  // Check if a slot is part of a block/marathon and get the slot index within it
+  const getSlotInfoForBlockMarathon = (dayIndex: number, timeIndex: number): { item: ScheduleItem; slotIndex: number } | null => {
+    for (const item of scheduleItems) {
+      if (item.dayOfWeek === dayIndex && (item.mediaType === "block" || item.mediaType === "marathon")) {
+        const itemStartIndex = timeSlots.findIndex((slot) => slot.time12 === item.startTime)
+        const duration = getBlockDuration(item)
+        const itemSpan = Math.ceil(duration / 30)
+        if (timeIndex >= itemStartIndex && timeIndex < itemStartIndex + itemSpan) {
+          return { item, slotIndex: timeIndex - itemStartIndex }
         }
       }
     }
@@ -238,6 +302,10 @@ export function ScheduleGrid({
                     const isFirstSlotOfItem =
                       scheduleItem && getScheduleItem(dayIndex, timeSlot.time12) === scheduleItem
                     const slotKey = `${dayIndex}-${timeIndex}`
+                    
+                    // Get block/marathon info for this specific slot
+                    const blockSlotInfo = getSlotInfoForBlockMarathon(dayIndex, timeIndex)
+                    const isBlockOrMarathon = scheduleItem && (scheduleItem.mediaType === "block" || scheduleItem.mediaType === "marathon")
 
                     return (
                       <div
@@ -252,21 +320,27 @@ export function ScheduleGrid({
                         onMouseEnter={() => setHoveredSlot(slotKey)}
                         onMouseLeave={() => setHoveredSlot(null)}
                       >
-                        {isFirstSlotOfItem && scheduleItem && (
+                        {/* For blocks/marathons, show name and series in EVERY slot */}
+                        {isBlockOrMarathon && blockSlotInfo && (
                           <div className="text-xs font-medium text-white p-1 rounded">
-                            {scheduleItem.mediaType === "block" || scheduleItem.mediaType === "marathon"
-                              ? (() => {
-                                  const details = getBlockDetails(scheduleItem)
-                                  return details ? (
-                                    <>
-                                      <div>{truncateTitle(details.blockName)}</div>
-                                      <div className="text-[10px] opacity-90">{truncateTitle(details.seriesName)}</div>
-                                    </>
-                                  ) : (
-                                    truncateTitle(scheduleItem.title)
-                                  )
-                                })()
-                              : truncateTitle(scheduleItem.title)}
+                            {(() => {
+                              const details = getBlockDetailsForSlot(blockSlotInfo.item, blockSlotInfo.slotIndex)
+                              return details ? (
+                                <>
+                                  <div className="font-bold">{truncateTitle(details.blockName)}</div>
+                                  <div className="text-[10px] opacity-90">{truncateTitle(details.seriesName)}</div>
+                                </>
+                              ) : (
+                                truncateTitle(scheduleItem.title)
+                              )
+                            })()}
+                          </div>
+                        )}
+                        
+                        {/* For regular media, only show in first slot */}
+                        {!isBlockOrMarathon && isFirstSlotOfItem && scheduleItem && (
+                          <div className="text-xs font-medium text-white p-1 rounded">
+                            {truncateTitle(scheduleItem.title)}
                           </div>
                         )}
 

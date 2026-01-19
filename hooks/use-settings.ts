@@ -52,17 +52,29 @@ export interface SafeHarborTimes {
 }
 
 export interface CooldownSettings {
-  duration: number // in minutes
+  movies: string
+  tvShow: string
+  tvEpisodes: string
+  filler: string
+  musicVideos: string
 }
 
 export interface DaypartSettings {
   startTime: string // Time in format "HH:MM AM/PM"
   endTime: string // Time in format "HH:MM AM/PM"
+  mediaTypes: string[]
+  audience: string[]
+  genre: string[]
+}
+
+export interface SingleChannelTypeSettings {
+  cooldown: CooldownSettings
+  dayparts: Record<string, DaypartSettings>
 }
 
 export interface ChannelTypeSettings {
-  cooldown: CooldownSettings
-  dayparts: Record<string, DaypartSettings>
+  selectedChannelType: string
+  channelTypes: Record<string, SingleChannelTypeSettings>
 }
 
 export interface Settings {
@@ -99,22 +111,39 @@ const defaultRatingAudioFiles: RatingAudioFiles = {
 }
 
 const defaultCooldownSettings: CooldownSettings = {
-  duration: 30, // Default cooldown duration in minutes
+  movies: "Same Day only",
+  tvShow: "Same Day only",
+  tvEpisodes: "Same Day only",
+  filler: "Same Day only",
+  musicVideos: "Same Day only",
 }
 
-const defaultDaypartSettings: DaypartSettings = {
-  startTime: "00:00 AM",
-  endTime: "12:00 PM",
-}
+const createDefaultDaypartSettings = (startTime: string, endTime: string): DaypartSettings => ({
+  startTime,
+  endTime,
+  mediaTypes: [],
+  audience: [],
+  genre: [],
+})
 
-const defaultChannelTypeSettings: ChannelTypeSettings = {
+const createDefaultSingleChannelTypeSettings = (): SingleChannelTypeSettings => ({
   cooldown: defaultCooldownSettings,
   dayparts: {
-    morning: defaultDaypartSettings,
-    afternoon: defaultDaypartSettings,
-    evening: defaultDaypartSettings,
-    night: defaultDaypartSettings,
+    earlyMorning: createDefaultDaypartSettings("5:00 AM", "9:00 AM"),
+    daytime: createDefaultDaypartSettings("9:00 AM", "3:00 PM"),
+    afterSchool: createDefaultDaypartSettings("3:00 PM", "5:00 PM"),
+    earlyFringe: createDefaultDaypartSettings("5:00 PM", "7:00 PM"),
+    earlyPrime: createDefaultDaypartSettings("7:00 PM", "8:00 PM"),
+    primetime: createDefaultDaypartSettings("8:00 PM", "10:00 PM"),
+    latePrime: createDefaultDaypartSettings("10:00 PM", "11:00 PM"),
+    lateNight: createDefaultDaypartSettings("11:00 PM", "12:00 AM"),
+    overnight: createDefaultDaypartSettings("12:00 AM", "5:00 AM"),
   },
+})
+
+const defaultChannelTypeSettings: ChannelTypeSettings = {
+  selectedChannelType: "Broadcast / OTA",
+  channelTypes: {},
 }
 
 // Helper functions for date calculations
@@ -444,6 +473,29 @@ export function useSettings() {
     [settings],
   )
 
+  // Get current channel type settings or create default
+  const getCurrentChannelTypeSettings = useCallback((): SingleChannelTypeSettings => {
+    if (!settings.channelTypeSettings) {
+      return createDefaultSingleChannelTypeSettings()
+    }
+    const channelType = settings.channelTypeSettings.selectedChannelType || "Broadcast / OTA"
+    const channelTypes = settings.channelTypeSettings.channelTypes || {}
+    return channelTypes[channelType] || createDefaultSingleChannelTypeSettings()
+  }, [settings])
+
+  const updateSelectedChannelType = useCallback(
+    (channelType: string) => {
+      saveSettings({
+        ...settings,
+        channelTypeSettings: {
+          ...settings.channelTypeSettings,
+          selectedChannelType: channelType,
+        },
+      })
+    },
+    [settings],
+  )
+
   const updateChannelTypeSettings = useCallback(
     (updates: Partial<ChannelTypeSettings>) => {
       const updatedChannelTypeSettings = { ...settings.channelTypeSettings, ...updates }
@@ -454,22 +506,76 @@ export function useSettings() {
 
   const updateCooldownSetting = useCallback(
     <K extends keyof CooldownSettings>(key: K, value: CooldownSettings[K]) => {
-      const updatedCooldown = { ...settings.channelTypeSettings.cooldown, [key]: value }
-      const updatedChannelTypeSettings = { ...settings.channelTypeSettings, cooldown: updatedCooldown }
-      saveSettings({ ...settings, channelTypeSettings: updatedChannelTypeSettings })
+      const channelType = settings.channelTypeSettings.selectedChannelType
+      const currentSettings = getCurrentChannelTypeSettings()
+      const updatedCooldown = { ...currentSettings.cooldown, [key]: value }
+      const updatedSingleSettings = { ...currentSettings, cooldown: updatedCooldown }
+      const updatedChannelTypes = {
+        ...settings.channelTypeSettings.channelTypes,
+        [channelType]: updatedSingleSettings,
+      }
+      saveSettings({
+        ...settings,
+        channelTypeSettings: {
+          ...settings.channelTypeSettings,
+          channelTypes: updatedChannelTypes,
+        },
+      })
     },
-    [settings],
+    [settings, getCurrentChannelTypeSettings],
   )
 
   const updateDaypartSetting = useCallback(
-    (daypart: keyof ChannelTypeSettings["dayparts"], field: keyof DaypartSettings, value: string | string[]) => {
-      const updatedDaypart = { ...settings.channelTypeSettings.dayparts[daypart], [field]: value }
-      const updatedDayparts = { ...settings.channelTypeSettings.dayparts, [daypart]: updatedDaypart }
-      const updatedChannelTypeSettings = { ...settings.channelTypeSettings, dayparts: updatedDayparts }
-      saveSettings({ ...settings, channelTypeSettings: updatedChannelTypeSettings })
+    (daypart: string, field: keyof DaypartSettings, value: string | string[]) => {
+      const channelType = settings.channelTypeSettings.selectedChannelType
+      const currentSettings = getCurrentChannelTypeSettings()
+      const currentDaypart = currentSettings.dayparts[daypart] || createDefaultDaypartSettings("", "")
+      const updatedDaypart = { ...currentDaypart, [field]: value }
+      const updatedDayparts = { ...currentSettings.dayparts, [daypart]: updatedDaypart }
+      const updatedSingleSettings = { ...currentSettings, dayparts: updatedDayparts }
+      const updatedChannelTypes = {
+        ...settings.channelTypeSettings.channelTypes,
+        [channelType]: updatedSingleSettings,
+      }
+      saveSettings({
+        ...settings,
+        channelTypeSettings: {
+          ...settings.channelTypeSettings,
+          channelTypes: updatedChannelTypes,
+        },
+      })
     },
-    [settings],
+    [settings, getCurrentChannelTypeSettings],
   )
+
+  const saveCurrentChannelTypeSettings = useCallback(() => {
+    const channelType = settings.channelTypeSettings.selectedChannelType
+    const currentSettings = getCurrentChannelTypeSettings()
+    const updatedChannelTypes = {
+      ...settings.channelTypeSettings.channelTypes,
+      [channelType]: currentSettings,
+    }
+    saveSettings({
+      ...settings,
+      channelTypeSettings: {
+        ...settings.channelTypeSettings,
+        channelTypes: updatedChannelTypes,
+      },
+    })
+  }, [settings, getCurrentChannelTypeSettings])
+
+  const clearCurrentChannelTypeSettings = useCallback(() => {
+    const channelType = settings.channelTypeSettings.selectedChannelType
+    const updatedChannelTypes = { ...settings.channelTypeSettings.channelTypes }
+    delete updatedChannelTypes[channelType]
+    saveSettings({
+      ...settings,
+      channelTypeSettings: {
+        ...settings.channelTypeSettings,
+        channelTypes: updatedChannelTypes,
+      },
+    })
+  }, [settings])
 
   const resetSettings = () => saveSettings(defaultSettings)
 
@@ -482,9 +588,13 @@ export function useSettings() {
     updateChannelInfoDisplay,
     updateMediaInfoDisplay,
     updateSafeHarborTimes,
-    updateChannelTypeSettings, // Exported new function
-    updateCooldownSetting, // Exported new function
-    updateDaypartSetting, // Exported new function
+    updateChannelTypeSettings,
+    updateSelectedChannelType,
+    updateCooldownSetting,
+    updateDaypartSetting,
+    getCurrentChannelTypeSettings,
+    saveCurrentChannelTypeSettings,
+    clearCurrentChannelTypeSettings,
     resetSettings,
   }
 }
