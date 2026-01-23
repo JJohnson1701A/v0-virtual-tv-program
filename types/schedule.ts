@@ -1,6 +1,7 @@
 export interface TimeSlot {
   dayOfWeek: number // 0 = Sunday, 1 = Monday, etc.
   time: string // "8:00 PM" format
+  date?: Date // The actual date clicked
 }
 
 export interface ScheduleItem {
@@ -13,7 +14,7 @@ export interface ScheduleItem {
   mediaType: string
   title: string
   runtime: number
-  occurrence: "weekly" | "weekdays"
+  occurrence: "weekly" | "weekdays" | "one-time"
   order: "chronological" | "airdate" | "shuffle" | "random"
   repeat: "restart" | "end" | "follow-up"
   followUpMediaId?: string

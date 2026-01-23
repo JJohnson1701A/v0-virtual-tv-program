@@ -21,6 +21,8 @@ import type {
   BlockMediaItem,
 } from "@/types/blocks-marathons"
 import type { MediaItem } from "@/types/media"
+import { useMediaLibrary } from "@/hooks/use-media-library"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 interface CreateBlockDialogProps {
   block: Block | null
@@ -113,6 +115,7 @@ const timeOptions = generateTimeOptions()
 
 export function CreateBlockDialog({ block, onSave, onCancel }: CreateBlockDialogProps) {
   const { channels } = useChannels()
+  const { tvshows } = useMediaLibrary()
   const [formData, setFormData] = useState({
     name: "",
     logo: "",
@@ -129,6 +132,10 @@ export function CreateBlockDialog({ block, onSave, onCancel }: CreateBlockDialog
     fillStyle: "at-end" as BlockFillStyle,
     repeat: "restart" as BlockRepeat,
     mediaItems: [] as BlockMediaItem[],
+  })
+  const [startingDate, setStartingDate] = useState(() => {
+    const today = new Date()
+    return today.toISOString().split("T")[0]
   })
 
   useEffect(() => {
@@ -211,6 +218,57 @@ export function CreateBlockDialog({ block, onSave, onCancel }: CreateBlockDialog
   }
 
   const isValid = formData.name.trim() && (formData.occurrence !== "annual" || formData.annualDate)
+
+  // Calculate series schedule information
+  const getSeriesScheduleInfo = () => {
+    // Get unique series in the block
+    const uniqueSeries = formData.mediaItems.reduce((acc, item) => {
+      if (!acc.find((existing) => existing.mediaId === item.mediaId)) {
+        acc.push(item)
+      }
+      return acc
+    }, [] as BlockMediaItem[])
+
+    // For each unique series, calculate episode count and end date
+    return uniqueSeries.map((seriesItem) => {
+      // Find the full media item to get episode count
+      const fullMedia = (tvshows || []).find((show) => show.id === seriesItem.mediaId)
+      const episodeCount = fullMedia?.episodes?.length || seriesItem.episodes || 1
+
+      // Calculate end date based on occurrence
+      const start = new Date(startingDate + "T12:00:00")
+      let endDate = new Date(start)
+
+      if (formData.occurrence === "weekly") {
+        // Weekly: add (episodeCount - 1) weeks
+        endDate.setDate(endDate.getDate() + (episodeCount - 1) * 7)
+      } else if (formData.occurrence === "weekdays") {
+        // Weekdays: calculate based on 5 days per week
+        const weeksNeeded = Math.ceil(episodeCount / 5)
+        const remainingDays = (episodeCount - 1) % 5
+        endDate.setDate(endDate.getDate() + (weeksNeeded - 1) * 7 + remainingDays)
+      } else {
+        // Once or annual: same day
+        endDate = start
+      }
+
+      // Format dates as MM-DD-YY
+      const formatDate = (date: Date) => {
+        const month = String(date.getMonth() + 1).padStart(2, "0")
+        const day = String(date.getDate()).padStart(2, "0")
+        const year = String(date.getFullYear()).slice(-2)
+        return `${month}-${day}-${year}`
+      }
+
+      return {
+        title: seriesItem.title,
+        runtime: seriesItem.runtime,
+        episodeCount,
+        startingOn: formatDate(start),
+        endingOn: formatDate(endDate),
+      }
+    })
+  }
 
   const calculateSlots = () => {
     const numSlots = formData.duration / 30
@@ -428,6 +486,52 @@ export function CreateBlockDialog({ block, onSave, onCancel }: CreateBlockDialog
                 </Select>
               </div>
             </div>
+
+            {/* Series Schedule Section */}
+            {formData.mediaItems.length > 0 && (
+              <div className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label>Starting Date</Label>
+                  <Input
+                    type="date"
+                    value={startingDate}
+                    onChange={(e) => setStartingDate(e.target.value)}
+                    className="w-48"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-base font-medium">Series Schedule</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Estimated schedule for each series in this block based on episode count and occurrence.
+                  </p>
+                  <div className="border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Series</TableHead>
+                          <TableHead className="w-24">Runtime</TableHead>
+                          <TableHead className="w-28">Episodes</TableHead>
+                          <TableHead className="w-28">Starting on</TableHead>
+                          <TableHead className="w-28">Ending on</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {getSeriesScheduleInfo().map((series) => (
+                          <TableRow key={series.title}>
+                            <TableCell className="font-medium">{series.title}</TableCell>
+                            <TableCell>{series.runtime} min</TableCell>
+                            <TableCell>{series.episodeCount} episode{series.episodeCount !== 1 ? "s" : ""}</TableCell>
+                            <TableCell>{series.startingOn}</TableCell>
+                            <TableCell>{series.endingOn}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <Separator />

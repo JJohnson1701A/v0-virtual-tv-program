@@ -136,7 +136,10 @@ export function ScheduleGrid({
   const handleSlotClick = (dayIndex: number, timeSlot: string) => {
     const existingItem = getScheduleItem(dayIndex, timeSlot)
     if (!existingItem) {
-      onTimeSlotClick({ dayOfWeek: dayIndex, time: timeSlot })
+      // Calculate the actual date for this slot
+      const slotDate = new Date(currentWeekOption?.startDate || new Date())
+      slotDate.setDate(slotDate.getDate() + dayIndex)
+      onTimeSlotClick({ dayOfWeek: dayIndex, time: timeSlot, date: slotDate })
     }
   }
 
@@ -280,11 +283,18 @@ export function ScheduleGrid({
           <div className="border-b bg-white sticky top-0 z-10">
             <div className="grid grid-cols-8 gap-0">
               <div className="p-2 border-r font-medium text-sm bg-gray-50">Timeslot</div>
-              {DAYS.map((day) => (
-                <div key={day} className="p-2 border-r font-medium text-sm text-center bg-gray-50">
-                  {day}
-                </div>
-              ))}
+              {DAYS.map((day, dayIndex) => {
+                // Calculate date for this day based on selected week
+                const dayDate = new Date(currentWeekOption?.startDate || new Date())
+                dayDate.setDate(dayDate.getDate() + dayIndex)
+                const month = String(dayDate.getMonth() + 1).padStart(2, "0")
+                const date = String(dayDate.getDate()).padStart(2, "0")
+                return (
+                  <div key={day} className="p-2 border-r font-medium text-sm text-center bg-gray-50">
+                    {day} ({month}-{date})
+                  </div>
+                )
+              })}
             </div>
           </div>
 

@@ -30,9 +30,13 @@ export interface Channel {
   assignedMedia: string[] // Array of media IDs assigned to this channel
   assignedSeasons: Record<string, number[]> // mediaId -> array of season numbers
   autoSchedulerAudience?: string[]
+  autoSchedulerAudienceExclude?: string[]
   autoSchedulerTVGenre?: string[]
+  autoSchedulerTVGenreExclude?: string[]
   autoSchedulerMovieGenre?: string[]
+  autoSchedulerMovieGenreExclude?: string[]
   autoSchedulerShowCategory?: string[]
+  autoSchedulerShowCategoryExclude?: string[]
   channelType?: ChannelType
   dateCreated: string
 }

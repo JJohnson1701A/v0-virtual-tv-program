@@ -131,4 +131,9 @@ export interface MediaItem {
   language?: string
   country?: string
   seasons?: Season[]
+  seasonsExclude?: Season[] // Excluded seasons for auto-scheduling
+  // Movie series fields
+  isMovieSeries?: boolean
+  seriesName?: string
+  seriesOrder?: number
 }

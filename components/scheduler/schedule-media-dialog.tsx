@@ -4,9 +4,11 @@ import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useMediaLibrary } from "@/hooks/use-media-library"
 import { useBlocksMarathons } from "@/hooks/use-blocks-marathons"
 import type { Channel } from "@/types/channel"
@@ -46,9 +48,10 @@ export function ScheduleMediaDialog({
   const [selectedMediaType, setSelectedMediaType] = useState("channel-specific")
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | Block | Marathon | null>(null)
   const [followUpMedia, setFollowUpMedia] = useState<MediaItem | Block | Marathon | null>(null)
-  const [occurrence, setOccurrence] = useState<"weekly" | "weekdays">("weekly")
+  const [occurrence, setOccurrence] = useState<"weekly" | "weekdays" | "one-time">("weekly")
   const [selectedWeekday, setSelectedWeekday] = useState<number>(timeSlot.dayOfWeek) // Initialize with clicked day
-  const [order, setOrder] = useState("chronological")
+  const [scheduledDate, setScheduledDate] = useState<Date>(timeSlot.date || new Date())
+  const [order, setOrder] = useState("one-time")
   const [repeat, setRepeat] = useState("restart")
   const [fillerSource, setFillerSource] = useState("channel")
   const [fillStyle, setFillStyle] = useState("at-end")
@@ -103,17 +106,54 @@ export function ScheduleMediaDialog({
     }
   }, [existingItem, movies, tvshows, musicvideos, podcasts, filler, livestreams, blocks, marathons, timeSlot.dayOfWeek])
 
-  // Calculate end time based on media runtime with proper 2-hour slot handling
+  // Update occurrence and repeat defaults based on selected media type
+  useEffect(() => {
+    if (!existingItem && selectedMedia) {
+      if ("type" in selectedMedia) {
+        // Movies default to one-time occurrence and no repeat
+        if (selectedMedia.type === "movies") {
+          setOccurrence("one-time")
+          setRepeat("none")
+        } else if (selectedMedia.type === "tvshows") {
+          // TV shows default to weekly
+          setOccurrence("weekly")
+        }
+      }
+    }
+  }, [selectedMedia, existingItem])
+
+  // Update day of week when scheduled date changes
+  const handleScheduledDateChange = (dateString: string) => {
+    const newDate = new Date(dateString + "T12:00:00") // Add time to avoid timezone issues
+    setScheduledDate(newDate)
+    setSelectedWeekday(newDate.getDay())
+  }
+
+  // Format date for input field (MM-DD-YY)
+  const formatDateForDisplay = (date: Date): string => {
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
+    const year = String(date.getFullYear()).slice(-2)
+    return `${month}-${day}-${year}`
+  }
+
+  // Format date for input type="date" (YYYY-MM-DD)
+  const formatDateForInput = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
+    return `${year}-${month}-${day}`
+  }
+
+  // Calculate end time based on media runtime, rounding up to the next half hour
   const calculateEndTime = (startTime: string, runtime: number): string => {
     const [time, period] = startTime.split(" ")
     const [hours, minutes] = time.split(":").map(Number)
-    let totalMinutes = (hours % 12) * 60 + minutes + (period === "PM" ? 12 * 60 : 0)
+    let totalMinutes = (hours % 12) * 60 + minutes + (period === "PM" && hours !== 12 ? 12 * 60 : 0)
+    if (period === "AM" && hours === 12) totalMinutes = minutes // Handle 12:xx AM
 
-    // For shows 90-120 minutes, round up to 2 hours (120 minutes)
-    let adjustedRuntime = runtime
-    if (runtime >= 90 && runtime <= 120) {
-      adjustedRuntime = 120
-    }
+    // Round up runtime to the next half hour (30 minute increment)
+    const adjustedRuntime = Math.ceil(runtime / 30) * 30
 
     totalMinutes += adjustedRuntime
 
@@ -220,11 +260,8 @@ export function ScheduleMediaDialog({
       title = selectedMedia.name
     }
 
-    // Calculate adjusted runtime for scheduling
-    let adjustedRuntime = runtime
-    if (adjustedRuntime >= 90 && adjustedRuntime <= 120) {
-      adjustedRuntime = 120
-    }
+    // Calculate adjusted runtime for scheduling (round up to next half hour)
+    const adjustedRuntime = Math.ceil(runtime / 30) * 30
 
     const baseScheduleData = {
       channelId: channel.id,
@@ -253,7 +290,7 @@ export function ScheduleMediaDialog({
         })
       }
     } else {
-      // Create single item for selected weekday
+      // Create single item for selected weekday (weekly or one-time)
       scheduleItems.push({
         ...baseScheduleData,
         dayOfWeek: selectedWeekday,
@@ -340,12 +377,12 @@ export function ScheduleMediaDialog({
 
   // Check if item is a Block
   const isBlock = (media: MediaItem | Block | Marathon): media is Block => {
-    return "mediaItems" in media && !("type" in media)
+    return "mediaItems" in media && "name" in media && !("type" in media)
   }
 
   // Check if item is a Marathon
   const isMarathon = (media: MediaItem | Block | Marathon): media is Marathon => {
-    return "episodes" in media && !("type" in media) && !("mediaItems" in media)
+    return "name" in media && "duration" in media && !("type" in media) && !("mediaItems" in media)
   }
 
   // Format duration for display
@@ -415,6 +452,114 @@ export function ScheduleMediaDialog({
     return ""
   }
 
+  // Calculate series schedule information for blocks
+  const getBlockSeriesScheduleInfo = () => {
+    if (!selectedMedia || !isBlock(selectedMedia)) return []
+
+    // Get unique series in the block
+    const uniqueSeries = selectedMedia.mediaItems.reduce((acc, item) => {
+      if (!acc.find((existing) => existing.mediaId === item.mediaId)) {
+        acc.push(item)
+      }
+      return acc
+    }, [] as typeof selectedMedia.mediaItems)
+
+    // Format dates as MM-DD-YY
+    const formatDate = (date: Date) => {
+      const month = String(date.getMonth() + 1).padStart(2, "0")
+      const day = String(date.getDate()).padStart(2, "0")
+      const year = String(date.getFullYear()).slice(-2)
+      return `${month}-${day}-${year}`
+    }
+
+    // For each unique series, calculate next episode and dates
+    return uniqueSeries.map((seriesItem) => {
+      // Find the full media item to get episode details
+      const fullMedia = (tvshows || []).find((show) => show.id === seriesItem.mediaId)
+      const episodes = fullMedia?.episodes || []
+      const episodeCount = episodes.length || 1
+
+      // Calculate start date and current date
+      const start = new Date(scheduledDate)
+      start.setHours(0, 0, 0, 0)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      // Calculate which episode number we're on based on how many airings have passed
+      let nextEpisodeIndex = 0
+      let nextAirdate = new Date(start)
+
+      if (occurrence === "weekly") {
+        // Calculate weeks elapsed since start
+        const msPerWeek = 7 * 24 * 60 * 60 * 1000
+        const weeksElapsed = Math.floor((today.getTime() - start.getTime()) / msPerWeek)
+        nextEpisodeIndex = Math.max(0, Math.min(weeksElapsed, episodeCount - 1))
+        
+        // If today is past this episode's airdate, move to next episode
+        const currentEpisodeDate = new Date(start)
+        currentEpisodeDate.setDate(currentEpisodeDate.getDate() + nextEpisodeIndex * 7)
+        if (today > currentEpisodeDate && nextEpisodeIndex < episodeCount - 1) {
+          nextEpisodeIndex++
+        }
+        
+        nextAirdate = new Date(start)
+        nextAirdate.setDate(nextAirdate.getDate() + nextEpisodeIndex * 7)
+      } else if (occurrence === "weekdays") {
+        // Calculate weekdays elapsed since start
+        let daysElapsed = 0
+        const tempDate = new Date(start)
+        while (tempDate < today) {
+          tempDate.setDate(tempDate.getDate() + 1)
+          const dayOfWeek = tempDate.getDay()
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            daysElapsed++
+          }
+        }
+        nextEpisodeIndex = Math.min(daysElapsed, episodeCount - 1)
+        
+        // Calculate next airdate
+        let episodesCount = 0
+        nextAirdate = new Date(start)
+        while (episodesCount < nextEpisodeIndex) {
+          nextAirdate.setDate(nextAirdate.getDate() + 1)
+          const dayOfWeek = nextAirdate.getDay()
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            episodesCount++
+          }
+        }
+      }
+
+      // Calculate last airdate (final episode)
+      let lastAirdate = new Date(start)
+      if (occurrence === "weekly") {
+        lastAirdate.setDate(lastAirdate.getDate() + (episodeCount - 1) * 7)
+      } else if (occurrence === "weekdays") {
+        let episodesScheduled = 0
+        while (episodesScheduled < episodeCount - 1) {
+          lastAirdate.setDate(lastAirdate.getDate() + 1)
+          const dayOfWeek = lastAirdate.getDay()
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            episodesScheduled++
+          }
+        }
+      }
+
+      // Format next episode as S01E## 
+      const nextEpisode = episodes[nextEpisodeIndex]
+      const seasonNum = nextEpisode?.seasonNumber || 1
+      const episodeNum = nextEpisode?.episodeNumber || (nextEpisodeIndex + 1)
+      const nextEpisodeStr = `S${String(seasonNum).padStart(2, "0")}E${String(episodeNum).padStart(2, "0")}`
+
+      return {
+        title: seriesItem.title,
+        runtime: seriesItem.runtime,
+        nextEpisode: nextEpisodeStr,
+        nextAirdate: formatDate(nextAirdate),
+        lastAirdate: formatDate(lastAirdate),
+      }
+    })
+  }
+
   const mediaList = getMediaList()
 
   return (
@@ -476,7 +621,7 @@ export function ScheduleMediaDialog({
                         <div className="flex items-center gap-3">
                           {/* Logo for blocks/marathons */}
                           {(isBlock(media) || isMarathon(media)) && (
-                            <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
+                            <div className="w-8 h-8 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
                               {media.logo ? (
                                 <img 
                                   src={media.logo || "/placeholder.svg"} 
@@ -484,7 +629,7 @@ export function ScheduleMediaDialog({
                                   className="w-full h-full object-contain"
                                 />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-[8px]">
                                   No Logo
                                 </div>
                               )}
@@ -525,24 +670,34 @@ export function ScheduleMediaDialog({
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Occurrence</Label>
-                <Select value={occurrence} onValueChange={(value: "weekly" | "weekdays") => setOccurrence(value)}>
+                <Select value={occurrence} onValueChange={(value: "weekly" | "weekdays" | "one-time") => setOccurrence(value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="one-time">One Time</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
                     <SelectItem value="weekdays">Weekdays (M-F)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Weekday Selection - only show when occurrence is weekly */}
-              {occurrence === "weekly" && (
+              {/* Weekday Selection - show for weekly and one-time */}
+              {(occurrence === "weekly" || occurrence === "one-time") && (
                 <div className="space-y-2">
                   <Label>Day of Week</Label>
                   <Select
                     value={selectedWeekday.toString()}
-                    onValueChange={(value) => setSelectedWeekday(Number.parseInt(value))}
+                    onValueChange={(value) => {
+                      const newDayOfWeek = Number.parseInt(value)
+                      setSelectedWeekday(newDayOfWeek)
+                      // Update scheduled date to match the new day of week
+                      const newDate = new Date(scheduledDate)
+                      const currentDay = newDate.getDay()
+                      const diff = newDayOfWeek - currentDay
+                      newDate.setDate(newDate.getDate() + diff)
+                      setScheduledDate(newDate)
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -559,6 +714,21 @@ export function ScheduleMediaDialog({
                       })}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {/* Date Scheduled - show for weekly and one-time */}
+              {(occurrence === "weekly" || occurrence === "one-time") && (
+                <div className="space-y-2">
+                  <Label>Date Scheduled</Label>
+                  <Input
+                    type="date"
+                    value={formatDateForInput(scheduledDate)}
+                    onChange={(e) => handleScheduledDateChange(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateForDisplay(scheduledDate)}
+                  </p>
                 </div>
               )}
 
@@ -580,34 +750,70 @@ export function ScheduleMediaDialog({
               </div>
 
               <div className="space-y-2">
-                <Label>Order</Label>
-                <Select value={order} onValueChange={setOrder}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="chronological">Chronological</SelectItem>
-                    <SelectItem value="airdate">Airdate</SelectItem>
-                    <SelectItem value="shuffle">Shuffle</SelectItem>
-                    <SelectItem value="random">Random</SelectItem>
-                  </SelectContent>
-                </Select>
+              <Label>Order</Label>
+              <Select value={order} onValueChange={setOrder}>
+              <SelectTrigger>
+              <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+              <SelectItem value="one-time">One Time</SelectItem>
+              <SelectItem value="chronological">Chronological</SelectItem>
+              <SelectItem value="airdate">Airdate</SelectItem>
+              <SelectItem value="shuffle">Shuffle</SelectItem>
+              <SelectItem value="random">Random</SelectItem>
+              </SelectContent>
+              </Select>
               </div>
+
+              {/* Block Series Schedule Section */}
+              {selectedMedia && isBlock(selectedMedia) && selectedMedia.mediaItems.length > 0 && (
+                <div className="space-y-2 mt-4">
+                  <Label className="text-base font-medium">Series Schedule</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Current schedule for each series showing the next episode to air.
+                  </p>
+                  <div className="border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Series</TableHead>
+                          <TableHead className="w-20">Runtime</TableHead>
+                          <TableHead className="w-24">Next Episode</TableHead>
+                          <TableHead className="w-24">Next Airdate</TableHead>
+                          <TableHead className="w-24">Last Airdate</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {getBlockSeriesScheduleInfo().map((series) => (
+                          <TableRow key={series.title}>
+                            <TableCell className="font-medium">{series.title}</TableCell>
+                            <TableCell>{series.runtime} min</TableCell>
+                            <TableCell>{series.nextEpisode}</TableCell>
+                            <TableCell>{series.nextAirdate}</TableCell>
+                            <TableCell>{series.lastAirdate}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Repeat</Label>
-                <Select value={repeat} onValueChange={setRepeat}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="restart">Restart at Beginning</SelectItem>
-                    <SelectItem value="end">End</SelectItem>
-                    <SelectItem value="follow-up">Play Follow-Up</SelectItem>
-                  </SelectContent>
-                </Select>
+              <Label>Repeat</Label>
+              <Select value={repeat} onValueChange={setRepeat}>
+              <SelectTrigger>
+              <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="restart">Restart at Beginning</SelectItem>
+              <SelectItem value="end">End</SelectItem>
+              <SelectItem value="follow-up">Play Follow-Up</SelectItem>
+              </SelectContent>
+              </Select>
               </div>
 
               {/* Follow-Up Media Selection */}

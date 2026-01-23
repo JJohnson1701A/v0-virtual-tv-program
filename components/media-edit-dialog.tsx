@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { TriStateCheckbox, type TriState } from "@/components/ui/tri-state-checkbox"
 import { FileUpload } from "@/components/file-upload"
 import { MetadataLookup } from "@/components/metadata-lookup"
 import { useChannels } from "@/hooks/use-channels"
@@ -421,16 +422,31 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
     }
   }
 
-  const handleSeasonToggle = (seasonValue: string, checked: boolean) => {
+// Get tri-state value for Time of Year
+  const getSeasonTriState = (seasonValue: string): TriState => {
     const currentSeasons = Array.isArray(editedItem.seasons) ? editedItem.seasons : []
-    if (checked) {
-      handleChange("seasons", [...currentSeasons, seasonValue])
-    } else {
-      handleChange(
-        "seasons",
-        currentSeasons.filter((season) => season !== seasonValue),
-      )
+    const excludedSeasons = Array.isArray(editedItem.seasonsExclude) ? editedItem.seasonsExclude : []
+    if (currentSeasons.includes(seasonValue as any)) return "checked"
+    if (excludedSeasons.includes(seasonValue as any)) return "excluded"
+    return "unchecked"
+  }
+
+  const handleSeasonToggle = (seasonValue: string, newState: TriState) => {
+    const currentSeasons = Array.isArray(editedItem.seasons) ? editedItem.seasons : []
+    const excludedSeasons = Array.isArray(editedItem.seasonsExclude) ? editedItem.seasonsExclude : []
+
+    // Remove from both arrays first
+    const newSeasons = currentSeasons.filter((season) => season !== seasonValue)
+    const newExcluded = excludedSeasons.filter((season) => season !== seasonValue)
+
+    if (newState === "checked") {
+      newSeasons.push(seasonValue as any)
+    } else if (newState === "excluded") {
+      newExcluded.push(seasonValue as any)
     }
+
+    handleChange("seasons", newSeasons)
+    handleChange("seasonsExclude", newExcluded)
   }
 
   const handleRatingChange = (value: string, isMovieRating: boolean) => {
@@ -962,6 +978,7 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
 
                 <div className="grid gap-2">
                   <Label htmlFor="seasons">Time of Year (Multi-select)</Label>
+                  <p className="text-xs text-gray-500">Click to cycle: blank (neutral) → check (include) → X (exclude from auto-scheduling)</p>
                   <div className="border rounded-md p-3 max-h-64 overflow-y-auto">
                     <div className="space-y-4">
                       {Object.entries(
@@ -978,14 +995,12 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                           <h4 className="font-medium text-sm mb-2 text-gray-700">{header}</h4>
                           <div className="space-y-2 pl-2">
                             {options.map((option) => {
-                              const currentSeasons = Array.isArray(editedItem.seasons) ? editedItem.seasons : []
-                              const isChecked = currentSeasons.includes(option.value)
                               return (
                                 <div key={option.value} className="flex items-center space-x-2">
-                                  <Checkbox
+                                  <TriStateCheckbox
                                     id={`season-${option.value}`}
-                                    checked={isChecked}
-                                    onCheckedChange={(checked) => handleSeasonToggle(option.value, checked as boolean)}
+                                    value={getSeasonTriState(option.value)}
+                                    onValueChange={(newState) => handleSeasonToggle(option.value, newState)}
                                   />
                                   <label htmlFor={`season-${option.value}`} className="text-sm cursor-pointer">
                                     {option.value}
@@ -1121,19 +1136,60 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                       />
                     </div>
 
-                    {/* Only show Commercial Breaks for non-filler and non-music video items */}
-                    {!isFiller && !isMusicVideo && (
-                      <div className="grid gap-2">
-                        <Label htmlFor="breaks">Commercial Breaks</Label>
-                        <Input
-                          id="breaks"
-                          value={editedItem.breaks || ""}
-                          onChange={(e) => handleChange("breaks", e.target.value)}
-                          placeholder="00:03:21.00, 00:15:45.00, etc."
-                        />
-                        <p className="text-xs text-gray-500">Separate timecodes with commas</p>
-                      </div>
-                    )}
+              {/* Only show Commercial Breaks for non-filler and non-music video items */}
+              {!isFiller && !isMusicVideo && (
+              <div className="grid gap-2">
+              <Label htmlFor="breaks">Commercial Breaks</Label>
+              <Input
+              id="breaks"
+              value={editedItem.breaks || ""}
+              onChange={(e) => handleChange("breaks", e.target.value)}
+              placeholder="00:03:21.00, 00:15:45.00, etc."
+              />
+              <p className="text-xs text-gray-500">Separate timecodes with commas</p>
+              </div>
+              )}
+
+              {/* Movie Series fields - only show for movies */}
+              {isMovie && (
+              <>
+              <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isMovieSeries"
+                checked={editedItem.isMovieSeries || false}
+                onCheckedChange={(checked) => handleChange("isMovieSeries", checked)}
+              />
+              <Label htmlFor="isMovieSeries" className="cursor-pointer">Movie Series</Label>
+              </div>
+
+              {editedItem.isMovieSeries && (
+              <>
+              <div className="grid gap-2">
+              <Label htmlFor="seriesName">Series Name</Label>
+              <Input
+                id="seriesName"
+                value={editedItem.seriesName || ""}
+                onChange={(e) => handleChange("seriesName", e.target.value)}
+                placeholder="e.g., Star Wars, Harry Potter"
+              />
+              </div>
+
+              <div className="grid gap-2">
+              <Label htmlFor="seriesOrder">Series Order</Label>
+              <Input
+                id="seriesOrder"
+                type="number"
+                min={1}
+                value={editedItem.seriesOrder || 1}
+                onChange={(e) => handleChange("seriesOrder", Number.parseInt(e.target.value) || 1)}
+                placeholder="1"
+              />
+              <p className="text-xs text-gray-500">Order of this movie within the series</p>
+              </div>
+              </>
+              )}
+              </>
+              )}
                   </>
                 )}
               </div>

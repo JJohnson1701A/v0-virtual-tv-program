@@ -1,5 +1,7 @@
 "use client"
 
+import { Checkbox } from "@/components/ui/checkbox"
+
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -8,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
-import { Checkbox } from "@/components/ui/checkbox"
+import { TriStateCheckbox, type TriState } from "@/components/ui/tri-state-checkbox"
 import { FileUpload } from "@/components/file-upload"
 import { TimeSelect } from "@/components/time-select"
 import { MediaSelector } from "@/components/media-selector"
@@ -172,9 +174,13 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
     assignedMedia: [] as string[],
     assignedSeasons: {} as Record<string, number[]>,
     autoSchedulerAudience: [] as string[],
+    autoSchedulerAudienceExclude: [] as string[],
     autoSchedulerTVGenre: [] as string[],
+    autoSchedulerTVGenreExclude: [] as string[],
     autoSchedulerMovieGenre: [] as string[],
+    autoSchedulerMovieGenreExclude: [] as string[],
     autoSchedulerShowCategory: [] as string[],
+    autoSchedulerShowCategoryExclude: [] as string[],
     channelType: undefined as ChannelType | undefined,
   })
 
@@ -196,9 +202,13 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
         assignedMedia: channel.assignedMedia || [],
         assignedSeasons: channel.assignedSeasons || {},
         autoSchedulerAudience: channel.autoSchedulerAudience || [],
+        autoSchedulerAudienceExclude: channel.autoSchedulerAudienceExclude || [],
         autoSchedulerTVGenre: channel.autoSchedulerTVGenre || [],
+        autoSchedulerTVGenreExclude: channel.autoSchedulerTVGenreExclude || [],
         autoSchedulerMovieGenre: channel.autoSchedulerMovieGenre || [],
+        autoSchedulerMovieGenreExclude: channel.autoSchedulerMovieGenreExclude || [],
         autoSchedulerShowCategory: channel.autoSchedulerShowCategory || [],
+        autoSchedulerShowCategoryExclude: channel.autoSchedulerShowCategoryExclude || [],
         channelType: channel.channelType,
       })
     }
@@ -208,48 +218,78 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleAudienceToggle = (audience: string, checked: boolean) => {
-    if (checked) {
-      handleInputChange("autoSchedulerAudience", [...formData.autoSchedulerAudience, audience])
-    } else {
-      handleInputChange(
-        "autoSchedulerAudience",
-        formData.autoSchedulerAudience.filter((a) => a !== audience),
-      )
-    }
+  // Helper to get tri-state value
+  const getTriState = (value: string, includeArray: string[], excludeArray: string[]): TriState => {
+    if (includeArray.includes(value)) return "checked"
+    if (excludeArray.includes(value)) return "excluded"
+    return "unchecked"
   }
 
-  const handleTVGenreToggle = (genre: string, checked: boolean) => {
-    if (checked) {
-      handleInputChange("autoSchedulerTVGenre", [...formData.autoSchedulerTVGenre, genre])
-    } else {
-      handleInputChange(
-        "autoSchedulerTVGenre",
-        formData.autoSchedulerTVGenre.filter((g) => g !== genre),
-      )
+  // Helper to handle tri-state change
+  const handleTriStateChange = (
+    value: string,
+    newState: TriState,
+    includeKey: string,
+    excludeKey: string,
+    includeArray: string[],
+    excludeArray: string[]
+  ) => {
+    // Remove from both arrays first
+    const newInclude = includeArray.filter((v) => v !== value)
+    const newExclude = excludeArray.filter((v) => v !== value)
+
+    if (newState === "checked") {
+      newInclude.push(value)
+    } else if (newState === "excluded") {
+      newExclude.push(value)
     }
+
+    handleInputChange(includeKey, newInclude)
+    handleInputChange(excludeKey, newExclude)
   }
 
-  const handleMovieGenreToggle = (genre: string, checked: boolean) => {
-    if (checked) {
-      handleInputChange("autoSchedulerMovieGenre", [...formData.autoSchedulerMovieGenre, genre])
-    } else {
-      handleInputChange(
-        "autoSchedulerMovieGenre",
-        formData.autoSchedulerMovieGenre.filter((g) => g !== genre),
-      )
-    }
+  const handleAudienceToggle = (audience: string, newState: TriState) => {
+    handleTriStateChange(
+      audience,
+      newState,
+      "autoSchedulerAudience",
+      "autoSchedulerAudienceExclude",
+      formData.autoSchedulerAudience,
+      formData.autoSchedulerAudienceExclude
+    )
   }
 
-  const handleShowCategoryToggle = (category: string, checked: boolean) => {
-    if (checked) {
-      handleInputChange("autoSchedulerShowCategory", [...formData.autoSchedulerShowCategory, category])
-    } else {
-      handleInputChange(
-        "autoSchedulerShowCategory",
-        formData.autoSchedulerShowCategory.filter((c) => c !== category),
-      )
-    }
+  const handleTVGenreToggle = (genre: string, newState: TriState) => {
+    handleTriStateChange(
+      genre,
+      newState,
+      "autoSchedulerTVGenre",
+      "autoSchedulerTVGenreExclude",
+      formData.autoSchedulerTVGenre,
+      formData.autoSchedulerTVGenreExclude
+    )
+  }
+
+  const handleMovieGenreToggle = (genre: string, newState: TriState) => {
+    handleTriStateChange(
+      genre,
+      newState,
+      "autoSchedulerMovieGenre",
+      "autoSchedulerMovieGenreExclude",
+      formData.autoSchedulerMovieGenre,
+      formData.autoSchedulerMovieGenreExclude
+    )
+  }
+
+  const handleShowCategoryToggle = (category: string, newState: TriState) => {
+    handleTriStateChange(
+      category,
+      newState,
+      "autoSchedulerShowCategory",
+      "autoSchedulerShowCategoryExclude",
+      formData.autoSchedulerShowCategory,
+      formData.autoSchedulerShowCategoryExclude
+    )
   }
 
   const handleMediaSelection = (selectedMedia: MediaItem[], selectedSeasons?: Record<string, number[]>) => {
@@ -277,9 +317,13 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
       assignedMedia: formData.assignedMedia,
       assignedSeasons: formData.assignedSeasons,
       autoSchedulerAudience: formData.autoSchedulerAudience,
+      autoSchedulerAudienceExclude: formData.autoSchedulerAudienceExclude,
       autoSchedulerTVGenre: formData.autoSchedulerTVGenre,
+      autoSchedulerTVGenreExclude: formData.autoSchedulerTVGenreExclude,
       autoSchedulerMovieGenre: formData.autoSchedulerMovieGenre,
+      autoSchedulerMovieGenreExclude: formData.autoSchedulerMovieGenreExclude,
       autoSchedulerShowCategory: formData.autoSchedulerShowCategory,
+      autoSchedulerShowCategoryExclude: formData.autoSchedulerShowCategoryExclude,
       channelType: formData.channelType,
     }
     onSave(channelData)
@@ -427,13 +471,14 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
               {/* Audience Multi-Select */}
               <div className="space-y-2">
                 <Label>Audience</Label>
+                <p className="text-xs text-muted-foreground">Click to cycle: blank (neutral) → check (include) → X (exclude)</p>
                 <div className="border rounded-md p-3 max-h-32 overflow-y-auto space-y-2">
                   {audienceOptions.map((audience) => (
                     <div key={audience} className="flex items-center space-x-2">
-                      <Checkbox
+                      <TriStateCheckbox
                         id={`audience-${audience}`}
-                        checked={formData.autoSchedulerAudience.includes(audience)}
-                        onCheckedChange={(checked) => handleAudienceToggle(audience, checked as boolean)}
+                        value={getTriState(audience, formData.autoSchedulerAudience, formData.autoSchedulerAudienceExclude)}
+                        onValueChange={(newState) => handleAudienceToggle(audience, newState)}
                       />
                       <label htmlFor={`audience-${audience}`} className="text-sm capitalize cursor-pointer">
                         {audience}
@@ -446,13 +491,14 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
               {/* TV Genre Multi-Select */}
               <div className="space-y-2">
                 <Label>TV Genre</Label>
+                <p className="text-xs text-muted-foreground">Click to cycle: blank (neutral) → check (include) → X (exclude)</p>
                 <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
                   {tvGenreOptions.map((genre) => (
                     <div key={genre} className="flex items-center space-x-2">
-                      <Checkbox
+                      <TriStateCheckbox
                         id={`tv-genre-${genre}`}
-                        checked={formData.autoSchedulerTVGenre.includes(genre)}
-                        onCheckedChange={(checked) => handleTVGenreToggle(genre, checked as boolean)}
+                        value={getTriState(genre, formData.autoSchedulerTVGenre, formData.autoSchedulerTVGenreExclude)}
+                        onValueChange={(newState) => handleTVGenreToggle(genre, newState)}
                       />
                       <label htmlFor={`tv-genre-${genre}`} className="text-sm cursor-pointer">
                         {genre}
@@ -465,13 +511,14 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
               {/* Movie Genre Multi-Select */}
               <div className="space-y-2">
                 <Label>Movie Genre</Label>
+                <p className="text-xs text-muted-foreground">Click to cycle: blank (neutral) → check (include) → X (exclude)</p>
                 <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
                   {movieGenreOptions.map((genre) => (
                     <div key={genre} className="flex items-center space-x-2">
-                      <Checkbox
+                      <TriStateCheckbox
                         id={`movie-genre-${genre}`}
-                        checked={formData.autoSchedulerMovieGenre.includes(genre)}
-                        onCheckedChange={(checked) => handleMovieGenreToggle(genre, checked as boolean)}
+                        value={getTriState(genre, formData.autoSchedulerMovieGenre, formData.autoSchedulerMovieGenreExclude)}
+                        onValueChange={(newState) => handleMovieGenreToggle(genre, newState)}
                       />
                       <label htmlFor={`movie-genre-${genre}`} className="text-sm cursor-pointer">
                         {genre}
@@ -484,13 +531,14 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
               {/* Show Category Multi-Select */}
               <div className="space-y-2">
                 <Label>Show Category</Label>
+                <p className="text-xs text-muted-foreground">Click to cycle: blank (neutral) → check (include) → X (exclude)</p>
                 <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
                   {showCategoryOptions.map((category) => (
                     <div key={category} className="flex items-center space-x-2">
-                      <Checkbox
+                      <TriStateCheckbox
                         id={`show-category-${category}`}
-                        checked={formData.autoSchedulerShowCategory.includes(category)}
-                        onCheckedChange={(checked) => handleShowCategoryToggle(category, checked as boolean)}
+                        value={getTriState(category, formData.autoSchedulerShowCategory, formData.autoSchedulerShowCategoryExclude)}
+                        onValueChange={(newState) => handleShowCategoryToggle(category, newState)}
                       />
                       <label htmlFor={`show-category-${category}`} className="text-sm capitalize cursor-pointer">
                         {category}
