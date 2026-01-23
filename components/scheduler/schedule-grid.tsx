@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Edit2Icon, Trash2Icon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import type { Channel } from "@/types/channel"
 import type { ScheduleItem, TimeSlot } from "@/types/schedule"
-import { useBlocksMarathons } from "@/hooks/use-blocks-marathons" // Added to load blocks/marathons
+import { useBlocksMarathons } from "@/hooks/use-blocks-marathons"
+import { useMediaLibrary } from "@/hooks/use-media-library"
 
 interface ScheduleGridProps {
   channel: Channel
@@ -79,7 +80,8 @@ export function ScheduleGrid({
   const [selectedWeek, setSelectedWeek] = useState(0) // 0 = current week
   const timeSlots = generateTimeSlots()
   const weekOptions = generateWeekOptions()
-  const { blocks, marathons } = useBlocksMarathons() // Load blocks and marathons
+  const { blocks, marathons } = useBlocksMarathons()
+  const { tvshows } = useMediaLibrary()
 
   const handlePreviousWeek = () => {
     if (selectedWeek > 0) {
@@ -144,6 +146,70 @@ export function ScheduleGrid({
   }
 
   const currentWeekOption = weekOptions[selectedWeek]
+
+  // Calculate which episode should be shown for a TV show on a given day
+  const getEpisodeForDay = (scheduleItem: ScheduleItem, dayIndex: number): string | null => {
+    if (scheduleItem.mediaType !== "tvshows") return null
+
+    const tvshow = (tvshows || []).find((show) => show.id === scheduleItem.mediaId)
+    if (!tvshow || !tvshow.episodes || tvshow.episodes.length === 0) return null
+
+    // Get the date for this grid cell
+    const cellDate = new Date(currentWeekOption?.startDate || new Date())
+    cellDate.setDate(cellDate.getDate() + dayIndex)
+    cellDate.setHours(0, 0, 0, 0)
+
+    // Get the scheduled start date
+    const startDate = scheduleItem.scheduledDate 
+      ? new Date(scheduleItem.scheduledDate)
+      : new Date(currentWeekOption?.startDate || new Date())
+    startDate.setHours(0, 0, 0, 0)
+
+    // Calculate episode index based on occurrence type
+    let episodeIndex = 0
+
+    if (scheduleItem.occurrence === "weekly") {
+      // Weekly: count weeks since start
+      const msPerWeek = 7 * 24 * 60 * 60 * 1000
+      const weeksSinceStart = Math.floor((cellDate.getTime() - startDate.getTime()) / msPerWeek)
+      episodeIndex = weeksSinceStart
+    } else if (scheduleItem.occurrence === "weekdays") {
+      // Weekdays: count weekdays since start
+      let weekdays = 0
+      const tempDate = new Date(startDate)
+      while (tempDate < cellDate) {
+        tempDate.setDate(tempDate.getDate() + 1)
+        const dayOfWeek = tempDate.getDay()
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          weekdays++
+        }
+      }
+      episodeIndex = weekdays
+    } else {
+      // One-time: always episode 0 (or first)
+      episodeIndex = 0
+    }
+
+    // Handle negative index (viewing before scheduled start)
+    if (episodeIndex < 0) return null
+
+    // Handle episode cycling based on repeat setting
+    const totalEpisodes = tvshow.episodes.length
+    if (episodeIndex >= totalEpisodes) {
+      if (scheduleItem.repeat === "restart") {
+        episodeIndex = episodeIndex % totalEpisodes
+      } else {
+        return null // Show has ended
+      }
+    }
+
+    const episode = tvshow.episodes[episodeIndex]
+    if (!episode) return null
+
+    const seasonNum = episode.seasonNumber || 1
+    const episodeNum = episode.episodeNumber || (episodeIndex + 1)
+    return `S${String(seasonNum).padStart(2, "0")}E${String(episodeNum).padStart(2, "0")}`
+  }
 
   // Get block/marathon details for a specific slot index within the block
   const getBlockDetailsForSlot = (scheduleItem: ScheduleItem, slotIndexWithinBlock: number) => {
@@ -350,7 +416,12 @@ export function ScheduleGrid({
                         {/* For regular media, only show in first slot */}
                         {!isBlockOrMarathon && isFirstSlotOfItem && scheduleItem && (
                           <div className="text-xs font-medium text-white p-1 rounded">
-                            {truncateTitle(scheduleItem.title)}
+                            <div>{truncateTitle(scheduleItem.title)}</div>
+                            {scheduleItem.mediaType === "tvshows" && (
+                              <div className="text-[10px] opacity-90">
+                                {getEpisodeForDay(scheduleItem, dayIndex) || ""}
+                              </div>
+                            )}
                           </div>
                         )}
 

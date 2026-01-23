@@ -15,6 +15,7 @@ export interface ScheduleItem {
   title: string
   runtime: number
   occurrence: "weekly" | "weekdays" | "one-time"
+  scheduledDate?: string // ISO date string of when the schedule started
   order: "chronological" | "airdate" | "shuffle" | "random"
   repeat: "restart" | "end" | "follow-up"
   followUpMediaId?: string

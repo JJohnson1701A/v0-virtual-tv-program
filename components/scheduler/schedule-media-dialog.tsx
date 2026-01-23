@@ -277,6 +277,7 @@ export function ScheduleMediaDialog({
       fillerSource,
       fillStyle,
       followUpMediaId: followUpMedia?.id || null,
+      scheduledDate: scheduledDate.toISOString(),
     }
 
     const scheduleItems: Omit<ScheduleItem, "id">[] = []
@@ -375,14 +376,15 @@ export function ScheduleMediaDialog({
     }
   }
 
-  // Check if item is a Block
+  // Check if item is a Block - blocks have mediaItems array
   const isBlock = (media: MediaItem | Block | Marathon): media is Block => {
-    return "mediaItems" in media && "name" in media && !("type" in media)
+    return Array.isArray((media as Block).mediaItems)
   }
 
-  // Check if item is a Marathon
+  // Check if item is a Marathon - marathons have episodes array and name property (not title)
   const isMarathon = (media: MediaItem | Block | Marathon): media is Marathon => {
-    return "name" in media && "duration" in media && !("type" in media) && !("mediaItems" in media)
+    const m = media as Marathon
+    return Array.isArray(m.episodes) && typeof m.name === "string" && !("mediaItems" in media) && !("title" in media)
   }
 
   // Format duration for display
@@ -562,6 +564,108 @@ export function ScheduleMediaDialog({
 
   const mediaList = getMediaList()
 
+  // Generate detailed edit info for the header
+  const getEditDetailInfo = () => {
+    if (!existingItem || !selectedMedia) return null
+
+    const formatDateShort = (date: Date) => {
+      const month = String(date.getMonth() + 1).padStart(2, "0")
+      const day = String(date.getDate()).padStart(2, "0")
+      const year = String(date.getFullYear()).slice(-2)
+      return `${month}/${day}/${year}`
+    }
+
+    // Block info
+    if (isBlock(selectedMedia)) {
+      const totalEpisodes = selectedMedia.mediaItems.reduce((sum, item) => {
+        const fullMedia = (tvshows || []).find((show) => show.id === item.mediaId)
+        return sum + (fullMedia?.episodes?.length || 0)
+      }, 0)
+      const totalMinutes = selectedMedia.mediaItems.reduce((sum, item) => {
+        const fullMedia = (tvshows || []).find((show) => show.id === item.mediaId)
+        const episodeCount = fullMedia?.episodes?.length || 0
+        return sum + (episodeCount * (item.runtime || 30))
+      }, 0)
+      const totalHours = Math.round(totalMinutes / 60)
+      const scheduledHours = selectedMedia.duration / 60
+
+      return {
+        type: "block",
+        logo: selectedMedia.logo,
+        name: selectedMedia.name,
+        scheduledDuration: `${scheduledHours} hours`,
+        totalDuration: `${totalHours} hours total`,
+        itemCount: `${totalEpisodes} episodes`,
+      }
+    }
+
+    // Marathon info
+    if (isMarathon(selectedMedia)) {
+      const episodeCount = selectedMedia.episodes?.length || 0
+      const totalMinutes = episodeCount * (selectedMedia.duration / episodeCount || 120)
+      const totalHours = Math.round(totalMinutes / 60)
+      const scheduledHours = selectedMedia.duration / 60
+
+      return {
+        type: "marathon",
+        logo: selectedMedia.logo,
+        name: selectedMedia.name,
+        scheduledDuration: `${scheduledHours} hours`,
+        totalDuration: `${totalHours} hours total`,
+        itemCount: `${episodeCount} episodes`,
+      }
+    }
+
+    // TV Show info
+    if ("type" in selectedMedia && selectedMedia.type === "tvshows") {
+      const episodes = selectedMedia.episodes || []
+      const currentEpisodeIndex = 0 // Would need to track this
+      const currentEpisode = episodes[currentEpisodeIndex]
+      
+      // Calculate start and end dates
+      const startDate = new Date(scheduledDate)
+      const endDate = new Date(startDate)
+      if (occurrence === "weekly") {
+        endDate.setDate(endDate.getDate() + (episodes.length - 1) * 7)
+      } else if (occurrence === "weekdays") {
+        let daysToAdd = episodes.length - 1
+        let addedDays = 0
+        while (addedDays < daysToAdd) {
+          endDate.setDate(endDate.getDate() + 1)
+          if (endDate.getDay() !== 0 && endDate.getDay() !== 6) {
+            addedDays++
+          }
+        }
+      }
+
+      const seasonNum = currentEpisode?.seasonNumber || 1
+      const episodeNum = currentEpisode?.episodeNumber || 1
+      const episodeCode = `S${String(seasonNum).padStart(2, "0")}E${String(episodeNum).padStart(2, "0")}`
+
+      return {
+        type: "tvshow",
+        title: selectedMedia.title,
+        episodeName: currentEpisode?.title || "Unknown Episode",
+        episodeCode,
+        startDate: `Started ${formatDateShort(startDate)} at ${timeSlot.time}`,
+        endDate: `Ends ${formatDateShort(endDate)}`,
+      }
+    }
+
+    // Movie info
+    if ("type" in selectedMedia && selectedMedia.type === "movies") {
+      const movieDate = new Date(scheduledDate)
+      return {
+        type: "movie",
+        title: selectedMedia.title,
+        year: selectedMedia.year,
+        scheduledDateTime: `${formatDateShort(movieDate)} at ${timeSlot.time}`,
+      }
+    }
+
+    return null
+  }
+
   return (
     <Dialog open={true} onOpenChange={() => onCancel()}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -570,6 +674,50 @@ export function ScheduleMediaDialog({
           <p className="text-sm text-muted-foreground">
             {DAYS[timeSlot.dayOfWeek]} at {timeSlot.time} on {channel.name}
           </p>
+          {/* Detailed edit info for existing items */}
+          {existingItem && selectedMedia && (() => {
+            const editInfo = getEditDetailInfo()
+            if (!editInfo) return null
+
+            if (editInfo.type === "block" || editInfo.type === "marathon") {
+              return (
+                <div className="flex items-center gap-3 mt-3 p-3 bg-muted/50 rounded-md">
+                  <div className="w-8 h-8 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
+                    {editInfo.logo ? (
+                      <img src={editInfo.logo || "/placeholder.svg"} alt={editInfo.name} className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-[8px]">No Logo</div>
+                    )}
+                  </div>
+                  <div className="text-sm font-medium">
+                    {editInfo.name} • {editInfo.scheduledDuration} ({editInfo.totalDuration}) • {editInfo.itemCount}
+                  </div>
+                </div>
+              )
+            }
+
+            if (editInfo.type === "tvshow") {
+              return (
+                <div className="mt-3 p-3 bg-muted/50 rounded-md">
+                  <div className="text-sm font-medium">
+                    {editInfo.title} • {editInfo.episodeName} • {editInfo.episodeCode} • {editInfo.startDate} • {editInfo.endDate}
+                  </div>
+                </div>
+              )
+            }
+
+            if (editInfo.type === "movie") {
+              return (
+                <div className="mt-3 p-3 bg-muted/50 rounded-md">
+                  <div className="text-sm font-medium">
+                    {editInfo.title} ({editInfo.year}) • {editInfo.scheduledDateTime}
+                  </div>
+                </div>
+              )
+            }
+
+            return null
+          })()}
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -618,7 +766,7 @@ export function ScheduleMediaDialog({
                         }`}
                         onClick={() => setSelectedMedia(media)}
                       >
-                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3">
                           {/* Logo for blocks/marathons */}
                           {(isBlock(media) || isMarathon(media)) && (
                             <div className="w-8 h-8 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
