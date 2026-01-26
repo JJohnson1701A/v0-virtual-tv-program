@@ -37,6 +37,10 @@ export interface Channel {
   autoSchedulerMovieGenreExclude?: string[]
   autoSchedulerShowCategory?: string[]
   autoSchedulerShowCategoryExclude?: string[]
+  contentWarningFilter?: {
+    include: string[]
+    exclude: string[]
+  }
   channelType?: ChannelType
   dateCreated: string
 }

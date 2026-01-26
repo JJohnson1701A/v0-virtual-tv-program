@@ -110,7 +110,12 @@ export interface MediaItem {
   genre?: string
   rating?: MovieRating // Updated to use MovieRating type
   tvRating?: TVRating // Updated to use TVRating type
-  contentWarning?: string
+  contentWarning?: string // Legacy field
+  contentWarningData?: {
+    enabled: boolean
+    categories: string[]
+    subcategories: string[]
+  }
   audience?: string
   category?: string | string[] // Updated to support both single and multi-select
   breaks?: string
