@@ -16,6 +16,7 @@ import { TimeSelect } from "@/components/time-select"
 import { MediaSelector } from "@/components/media-selector"
 import type { Channel, OverlayPosition, ChannelType } from "@/types/channel"
 import type { MediaItem } from "@/types/media"
+import { ContentWarningFilterSelector } from "@/components/content-warning-filter"
 
 interface CreateChannelDialogProps {
   channel: Channel | null
@@ -181,6 +182,7 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
     autoSchedulerMovieGenreExclude: [] as string[],
     autoSchedulerShowCategory: [] as string[],
     autoSchedulerShowCategoryExclude: [] as string[],
+    contentWarningFilter: { include: [] as string[], exclude: [] as string[] },
     channelType: undefined as ChannelType | undefined,
   })
 
@@ -209,6 +211,7 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
         autoSchedulerMovieGenreExclude: channel.autoSchedulerMovieGenreExclude || [],
         autoSchedulerShowCategory: channel.autoSchedulerShowCategory || [],
         autoSchedulerShowCategoryExclude: channel.autoSchedulerShowCategoryExclude || [],
+        contentWarningFilter: channel.contentWarningFilter || { include: [], exclude: [] },
         channelType: channel.channelType,
       })
     }
@@ -324,6 +327,7 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
       autoSchedulerMovieGenreExclude: formData.autoSchedulerMovieGenreExclude,
       autoSchedulerShowCategory: formData.autoSchedulerShowCategory,
       autoSchedulerShowCategoryExclude: formData.autoSchedulerShowCategoryExclude,
+      contentWarningFilter: formData.contentWarningFilter,
       channelType: formData.channelType,
     }
     onSave(channelData)
@@ -547,6 +551,12 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
                   ))}
                 </div>
               </div>
+
+              {/* Content Warning Filter */}
+              <ContentWarningFilterSelector
+                value={formData.contentWarningFilter}
+                onChange={(filter) => handleInputChange("contentWarningFilter", filter)}
+              />
             </div>
           </div>
 

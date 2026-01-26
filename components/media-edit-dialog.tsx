@@ -16,6 +16,8 @@ import { useMediaLibrary } from "@/hooks/use-media-library"
 import { useBlocksMarathons } from "@/hooks/use-blocks-marathons"
 import type { MediaItem, TVShowEpisode, FillerType, CommercialCategory, TimeOfYear } from "@/types/media"
 import { PlusIcon, Trash2Icon } from "lucide-react"
+import { ContentWarningSelector } from "@/components/content-warning-selector"
+import type { ContentWarningData } from "@/lib/content-warnings"
 
 interface MediaEditDialogProps {
   item: MediaItem
@@ -336,6 +338,7 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
     category: item.category || [],
     assignedChannelId: item.assignedChannelId || [],
     seasons: item.seasons || [],
+    contentWarningData: item.contentWarningData || { enabled: false, categories: [], subcategories: [] },
   })
   const [activeTab, setActiveTab] = useState("details")
   const [newEpisode, setNewEpisode] = useState<TVShowEpisode>({
@@ -962,19 +965,13 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                   </>
                 )}
 
-                {/* Content Warning - show for all except music videos */}
-                {!isMusicVideo && (
-                  <div className="grid gap-2">
-                    <Label htmlFor="contentWarning">Content Warning</Label>
-                    <Input
-                      id="contentWarning"
-                      value={editedItem.contentWarning || ""}
-                      onChange={(e) => handleChange("contentWarning", e.target.value)}
-                      placeholder="violence; language; nudity; etc."
-                    />
-                    <p className="text-xs text-gray-500">Separate tags with semicolons</p>
-                  </div>
-                )}
+              {/* Content Warning - show for all except music videos */}
+              {!isMusicVideo && (
+                <ContentWarningSelector
+                  value={editedItem.contentWarningData || { enabled: false, categories: [], subcategories: [] }}
+                  onChange={(data) => handleChange("contentWarningData", data)}
+                />
+              )}
 
                 <div className="grid gap-2">
                   <Label htmlFor="seasons">Time of Year (Multi-select)</Label>
