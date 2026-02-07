@@ -13,9 +13,11 @@ import { useSettings } from "@/hooks/use-settings"
 import { useDisplays } from "@/hooks/use-displays"
 import { useChannels } from "@/hooks/use-channels"
 import { FileUpload } from "@/components/file-upload"
-import { RefreshCwIcon, MonitorIcon, CalendarIcon } from "lucide-react"
+import { RefreshCwIcon, MonitorIcon, CalendarIcon, SunIcon, MoonIcon } from "lucide-react"
 import type { RatingAudioFiles } from "@/hooks/use-settings"
-import { Checkbox } from "@/components/ui/checkbox" // Added Checkbox import
+import { Checkbox } from "@/components/ui/checkbox"
+import { useTheme } from "next-themes"
+import type { AccentColor } from "@/types/settings"
 
 export function SettingsPanel() {
   const {
@@ -36,6 +38,17 @@ export function SettingsPanel() {
   } = useSettings()
   const { displays, isLoading: displaysLoading, refreshDisplays } = useDisplays()
   const { channels } = useChannels()
+  const { theme, setTheme } = useTheme()
+
+  const accentColorOptions: { value: AccentColor; label: string; swatch: string }[] = [
+    { value: "red", label: "Red", swatch: "hsl(0, 72%, 51%)" },
+    { value: "orange", label: "Orange", swatch: "hsl(25, 95%, 53%)" },
+    { value: "yellow", label: "Yellow", swatch: "hsl(45, 93%, 47%)" },
+    { value: "green", label: "Green", swatch: "hsl(142, 71%, 45%)" },
+    { value: "blue", label: "Blue", swatch: "hsl(217, 91%, 60%)" },
+    { value: "indigo", label: "Indigo", swatch: "hsl(239, 84%, 67%)" },
+    { value: "violet", label: "Violet", swatch: "hsl(263, 70%, 50%)" },
+  ]
 
   const getDisplayName = (displayId: string) => {
     const display = displays.find((d) => d.id === displayId)
@@ -325,6 +338,83 @@ export function SettingsPanel() {
         </div>
 
         <Separator />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>Customize the look and feel of Virtual TV</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-base font-medium">Theme</Label>
+                <p className="text-sm text-muted-foreground">
+                  Switch between light and dark mode
+                </p>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg border border-border p-1">
+                <button
+                  type="button"
+                  onClick={() => setTheme("light")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    theme === "light"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  aria-label="Light mode"
+                >
+                  <SunIcon className="h-4 w-4" />
+                  Light
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme("dark")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    theme === "dark"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  aria-label="Dark mode"
+                >
+                  <MoonIcon className="h-4 w-4" />
+                  Dark
+                </button>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div className="space-y-0.5">
+                <Label className="text-base font-medium">Accent Color</Label>
+                <p className="text-sm text-muted-foreground">
+                  Choose the highlight color used for selected tabs, toggles, checkboxes, and other interactive elements
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {accentColorOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => updateSetting("accentColor", option.value)}
+                    className={`flex flex-col items-center gap-1.5 rounded-lg p-2 transition-all ${
+                      settings.accentColor === option.value
+                        ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                        : "hover:bg-muted"
+                    }`}
+                    aria-label={`Set accent color to ${option.label}`}
+                  >
+                    <span
+                      className="block h-8 w-8 rounded-full border border-border"
+                      style={{ backgroundColor: option.swatch }}
+                    />
+                    <span className="text-xs font-medium">{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

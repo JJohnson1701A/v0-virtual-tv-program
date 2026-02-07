@@ -762,7 +762,7 @@ export function ScheduleMediaDialog({
                       <div
                         key={media.id}
                         className={`p-3 rounded border cursor-pointer transition-colors ${
-                          selectedMedia?.id === media.id ? "bg-blue-100 border-blue-300" : "hover:bg-gray-50"
+                          selectedMedia?.id === media.id ? "bg-primary/15 border-primary/30" : "hover:bg-muted"
                         }`}
                         onClick={() => setSelectedMedia(media)}
                       >
@@ -808,8 +808,8 @@ export function ScheduleMediaDialog({
 
           {/* Scheduling Note */}
           {selectedMedia && getSchedulingNote(selectedMedia) && (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-              <p className="text-sm text-blue-800">{getSchedulingNote(selectedMedia)}</p>
+                <div className="p-3 bg-primary/10 border border-primary/20 rounded-md">
+                <p className="text-sm text-primary">{getSchedulingNote(selectedMedia)}</p>
             </div>
           )}
 
@@ -985,13 +985,13 @@ export function ScheduleMediaDialog({
                             <div
                               key={media.id}
                               className={`p-2 rounded border cursor-pointer transition-colors text-sm ${
-                                followUpMedia?.id === media.id ? "bg-blue-100 border-blue-300" : "hover:bg-gray-50"
+                                followUpMedia?.id === media.id ? "bg-primary/15 border-primary/30" : "hover:bg-muted"
                               }`}
                               onClick={() => setFollowUpMedia(media)}
                             >
                               <div className="font-medium">
                                 {"type" in media ? media.title : media.name}
-                                {isSameType && <span className="ml-1 text-xs text-blue-600">• Same Type</span>}
+                                {isSameType && <span className="ml-1 text-xs text-primary">• Same Type</span>}
                               </div>
                               <div className="text-xs text-gray-500">
                                 {"type" in media ? media.type : "Block/Marathon"}

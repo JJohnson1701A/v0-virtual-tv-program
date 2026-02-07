@@ -20,18 +20,18 @@ export function MediaSidebar({ activeType, onTypeChange, onAddMedia }: MediaSide
   ]
 
   return (
-    <div className="w-48 border-r bg-gray-50">
+    <div className="w-48 border-r bg-muted/50">
       {mediaTypes.map(({ type, label }) => (
         <div
           key={type}
-          className={`flex justify-between items-center px-4 py-3 border-b ${activeType === type ? "bg-cyan-100" : ""}`}
+          className={`flex justify-between items-center px-4 py-3 border-b ${activeType === type ? "bg-primary/15 text-primary font-medium" : ""}`}
         >
           <button onClick={() => onTypeChange(type)} className="text-left flex-1">
             {label}
           </button>
           <button
             onClick={() => onAddMedia(type)}
-            className="p-1 hover:bg-gray-200 rounded"
+            className="p-1 hover:bg-muted rounded"
             aria-label={`Add ${label}`}
           >
             <PlusIcon size={16} />

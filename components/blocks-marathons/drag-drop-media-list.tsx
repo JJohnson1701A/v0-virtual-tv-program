@@ -76,7 +76,7 @@ export function DragDropMediaList({ mediaItems, onReorder, onFollowupChange, sho
           onDrop={(e) => handleDrop(e, index)}
           onDragEnd={handleDragEnd}
           className={`flex items-center gap-3 p-3 border rounded-lg cursor-move transition-colors ${
-            dragOverIndex === index ? "border-blue-300 bg-blue-50" : "border-gray-200 hover:border-gray-300"
+            dragOverIndex === index ? "border-primary/30 bg-primary/10" : "border-border hover:border-muted-foreground/30"
           }`}
         >
           <GripVerticalIcon className="h-5 w-5 text-gray-400" />

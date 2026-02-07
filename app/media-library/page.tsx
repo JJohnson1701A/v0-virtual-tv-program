@@ -69,19 +69,19 @@ export default function MediaLibraryPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => handleSort("a-z")}
-                  className={`px-3 py-1 rounded ${sortOrder === "a-z" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+                  className={`px-3 py-1 rounded ${sortOrder === "a-z" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
                 >
                   A-Z
                 </button>
                 <button
                   onClick={() => handleSort("z-a")}
-                  className={`px-3 py-1 rounded ${sortOrder === "z-a" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+                  className={`px-3 py-1 rounded ${sortOrder === "z-a" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
                 >
                   Z-A
                 </button>
                 <button
                   onClick={() => handleSort("year")}
-                  className={`px-3 py-1 rounded ${sortOrder === "year" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+                  className={`px-3 py-1 rounded ${sortOrder === "year" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
                 >
                   Year
                 </button>

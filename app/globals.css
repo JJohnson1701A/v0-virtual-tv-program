@@ -66,6 +66,50 @@
   }
 }
 
+/* Accent color overrides — remap --primary to the chosen accent for light mode */
+[data-accent="red"],
+.dark[data-accent="red"] {
+  --primary: 0 72% 51%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 0 72% 51%;
+}
+[data-accent="orange"],
+.dark[data-accent="orange"] {
+  --primary: 25 95% 53%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 25 95% 53%;
+}
+[data-accent="yellow"],
+.dark[data-accent="yellow"] {
+  --primary: 45 93% 47%;
+  --primary-foreground: 0 0% 10%;
+  --ring: 45 93% 47%;
+}
+[data-accent="green"],
+.dark[data-accent="green"] {
+  --primary: 142 71% 45%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 142 71% 45%;
+}
+[data-accent="blue"],
+.dark[data-accent="blue"] {
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 217 91% 60%;
+}
+[data-accent="indigo"],
+.dark[data-accent="indigo"] {
+  --primary: 239 84% 67%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 239 84% 67%;
+}
+[data-accent="violet"],
+.dark[data-accent="violet"] {
+  --primary: 263 70% 50%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 263 70% 50%;
+}
+
 @layer base {
   * {
     @apply border-border;

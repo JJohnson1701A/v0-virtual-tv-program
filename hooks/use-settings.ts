@@ -77,6 +77,8 @@ export interface ChannelTypeSettings {
   channelTypes: Record<string, SingleChannelTypeSettings>
 }
 
+export type AccentColor = "red" | "orange" | "yellow" | "green" | "blue" | "indigo" | "violet"
+
 export interface Settings {
   autoSchedule: boolean
   safeHarbor: boolean
@@ -89,10 +91,11 @@ export interface Settings {
   showChannelInfo: boolean
   channelInfoDisplay: ChannelInfoDisplay
   showMediaInfo: boolean
-  mediaInfoDisplay: MediaInfoDisplay // Added mediaInfoDisplay field
+  mediaInfoDisplay: MediaInfoDisplay
   lastViewedChannel?: number
   tvSeason: TVSeasonSettings
-  channelTypeSettings: ChannelTypeSettings // Added channel type settings
+  channelTypeSettings: ChannelTypeSettings
+  accentColor: AccentColor
 }
 
 const defaultRatingAudioFiles: RatingAudioFiles = {
@@ -327,9 +330,10 @@ const defaultSettings: Settings = {
   showChannelInfo: true,
   channelInfoDisplay: getDefaultChannelInfoDisplay(),
   showMediaInfo: true,
-  mediaInfoDisplay: getDefaultMediaInfoDisplay(), // Added default mediaInfoDisplay
+  mediaInfoDisplay: getDefaultMediaInfoDisplay(),
   tvSeason: getDefaultTVSeasonSettings(),
-  channelTypeSettings: defaultChannelTypeSettings, // Added channel type settings
+  channelTypeSettings: defaultChannelTypeSettings,
+  accentColor: "blue",
 }
 
 // ---------------------------------------------------------------------------
@@ -359,6 +363,9 @@ export function useSettings() {
         }
         if (!parsedSettings.channelTypeSettings) {
           parsedSettings.channelTypeSettings = getDefaultChannelTypeSettings()
+        }
+        if (!parsedSettings.accentColor) {
+          parsedSettings.accentColor = "blue"
         }
         setSettings({ ...defaultSettings, ...parsedSettings })
       }

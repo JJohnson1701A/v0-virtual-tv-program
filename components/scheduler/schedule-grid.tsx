@@ -387,7 +387,7 @@ export function ScheduleGrid({
                       <div
                         key={`${day}-${timeSlot.time12}`}
                         className={`p-1 border-r min-h-[40px] relative cursor-pointer transition-colors ${
-                          scheduleItem ? "" : "hover:bg-blue-50"
+                          scheduleItem ? "" : "hover:bg-primary/10"
                         }`}
                         style={{
                           backgroundColor: scheduleItem ? getItemColor(scheduleItem.id) : "transparent",

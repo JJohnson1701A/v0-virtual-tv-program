@@ -80,6 +80,8 @@ export interface ChannelTypeSettings {
   channelTypes: Record<string, SingleChannelTypeSettings>
 }
 
+export type AccentColor = "red" | "orange" | "yellow" | "green" | "blue" | "indigo" | "violet"
+
 export interface Settings {
   autoSchedule: boolean
   safeHarbor: boolean
@@ -95,7 +97,8 @@ export interface Settings {
   mediaInfoDisplay: MediaInfoDisplay
   lastViewedChannel?: number
   tvSeason: TVSeasonSettings
-  channelTypeSettings: ChannelTypeSettings // Added channel type settings
+  channelTypeSettings: ChannelTypeSettings
+  accentColor: AccentColor
 }
 
 // Helper function to get the last Sunday of November
@@ -334,5 +337,6 @@ export const defaultSettings: Settings = {
   showMediaInfo: true,
   mediaInfoDisplay: getDefaultMediaInfoDisplay(),
   tvSeason: getDefaultTVSeasonSettings(),
-  channelTypeSettings: getDefaultChannelTypeSettings(), // Added default channel type settings
+  channelTypeSettings: getDefaultChannelTypeSettings(),
+  accentColor: "blue",
 }

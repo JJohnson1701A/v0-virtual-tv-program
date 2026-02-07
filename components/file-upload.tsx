@@ -62,7 +62,7 @@ export function FileUpload({ value, onChange, accept, placeholder }: FileUploadP
     <div className="space-y-2">
       <div
         className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
-          isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+          isDragging ? "border-primary bg-primary/10" : "border-border hover:border-muted-foreground/40"
         }`}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
