@@ -652,8 +652,8 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                       <Input
                         id="year"
                         type="number"
-                        value={editedItem.year}
-                        onChange={(e) => handleChange("year", Number.parseInt(e.target.value))}
+                        value={editedItem.year ?? ""}
+                        onChange={(e) => handleChange("year", e.target.value === "" ? 0 : Number.parseInt(e.target.value) || 0)}
                       />
                     </div>
 
@@ -730,8 +730,8 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                       <Input
                         id="year"
                         type="number"
-                        value={editedItem.year}
-                        onChange={(e) => handleChange("year", Number.parseInt(e.target.value))}
+                        value={editedItem.year ?? ""}
+                        onChange={(e) => handleChange("year", e.target.value === "" ? 0 : Number.parseInt(e.target.value) || 0)}
                       />
                     </div>
 
@@ -742,8 +742,8 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                         <Input
                           id="runtime"
                           type="number"
-                          value={editedItem.runtime || ""}
-                          onChange={(e) => handleChange("runtime", Number.parseInt(e.target.value) || 0)}
+                          value={editedItem.runtime ?? ""}
+                          onChange={(e) => handleChange("runtime", e.target.value === "" ? 0 : Number.parseInt(e.target.value) || 0)}
                         />
                       </div>
                     )}
@@ -1177,8 +1177,8 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                 id="seriesOrder"
                 type="number"
                 min={1}
-                value={editedItem.seriesOrder || 1}
-                onChange={(e) => handleChange("seriesOrder", Number.parseInt(e.target.value) || 1)}
+                value={editedItem.seriesOrder ?? 1}
+                onChange={(e) => handleChange("seriesOrder", e.target.value === "" ? 1 : Number.parseInt(e.target.value) || 1)}
                 placeholder="1"
               />
               <p className="text-xs text-gray-500">Order of this movie within the series</p>
@@ -1226,9 +1226,9 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                             <Input
                               id={`episode-${episode.id}-season`}
                               type="number"
-                              value={episode.seasonNumber}
+                              value={episode.seasonNumber ?? ""}
                               onChange={(e) =>
-                                handleEpisodeChange(episode.id, "seasonNumber", Number.parseInt(e.target.value))
+                                handleEpisodeChange(episode.id, "seasonNumber", e.target.value === "" ? 0 : Number.parseInt(e.target.value) || 0)
                               }
                             />
                           </div>
@@ -1238,9 +1238,9 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                             <Input
                               id={`episode-${episode.id}-episode`}
                               type="number"
-                              value={episode.episodeNumber}
+                              value={episode.episodeNumber ?? ""}
                               onChange={(e) =>
-                                handleEpisodeChange(episode.id, "episodeNumber", Number.parseInt(e.target.value))
+                                handleEpisodeChange(episode.id, "episodeNumber", e.target.value === "" ? 0 : Number.parseInt(e.target.value) || 0)
                               }
                             />
                           </div>
@@ -1303,8 +1303,8 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                       <Input
                         id="new-episode-season"
                         type="number"
-                        value={newEpisode.seasonNumber}
-                        onChange={(e) => handleNewEpisodeChange("seasonNumber", Number.parseInt(e.target.value))}
+                        value={newEpisode.seasonNumber ?? ""}
+                        onChange={(e) => handleNewEpisodeChange("seasonNumber", e.target.value === "" ? 0 : Number.parseInt(e.target.value) || 0)}
                       />
                     </div>
 
@@ -1313,8 +1313,8 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                       <Input
                         id="new-episode-episode"
                         type="number"
-                        value={newEpisode.episodeNumber}
-                        onChange={(e) => handleNewEpisodeChange("episodeNumber", Number.parseInt(e.target.value))}
+                        value={newEpisode.episodeNumber ?? ""}
+                        onChange={(e) => handleNewEpisodeChange("episodeNumber", e.target.value === "" ? 0 : Number.parseInt(e.target.value) || 0)}
                       />
                     </div>
                   </div>
