@@ -40,10 +40,10 @@ export function MediaGrid({ items, onEdit, onDelete, isLoading }: MediaGridProps
             <div className="text-sm text-gray-500">{item.year}</div>
           </div>
           <div className="flex mt-1 gap-2">
-            <button onClick={() => onEdit(item)} className="p-1 hover:bg-gray-100 rounded" aria-label="Edit">
+            <button onClick={() => onEdit(item)} className="p-1 hover:bg-primary/10 rounded transition-colors" aria-label="Edit">
               <Edit2Icon size={16} />
             </button>
-            <button onClick={() => onDelete(item)} className="p-1 hover:bg-gray-100 rounded" aria-label="Delete">
+            <button onClick={() => onDelete(item)} className="p-1 hover:bg-primary/10 rounded transition-colors" aria-label="Delete">
               <Trash2Icon size={16} />
             </button>
           </div>

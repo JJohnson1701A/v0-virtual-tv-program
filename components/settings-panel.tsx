@@ -400,7 +400,7 @@ export function SettingsPanel() {
                     className={`flex flex-col items-center gap-1.5 rounded-lg p-2 transition-all ${
                       settings.accentColor === option.value
                         ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                        : "hover:bg-muted"
+                        : "hover:bg-primary/10"
                     }`}
                     aria-label={`Set accent color to ${option.label}`}
                   >

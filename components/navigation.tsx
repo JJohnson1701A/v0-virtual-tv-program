@@ -33,7 +33,7 @@ export function Navigation({ activeTab }: NavigationProps) {
           <Link
             key={tab}
             href={href}
-            className={`px-6 py-3 text-center ${isActive ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}
+            className={`px-6 py-3 text-center transition-colors ${isActive ? "bg-primary text-primary-foreground font-medium" : "hover:bg-primary/10"}`}
           >
             {tab}
           </Link>

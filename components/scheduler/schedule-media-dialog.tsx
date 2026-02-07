@@ -762,7 +762,7 @@ export function ScheduleMediaDialog({
                       <div
                         key={media.id}
                         className={`p-3 rounded border cursor-pointer transition-colors ${
-                          selectedMedia?.id === media.id ? "bg-primary/15 border-primary/30" : "hover:bg-muted"
+                          selectedMedia?.id === media.id ? "bg-primary/15 border-primary/30" : "hover:bg-primary/10"
                         }`}
                         onClick={() => setSelectedMedia(media)}
                       >
@@ -985,7 +985,7 @@ export function ScheduleMediaDialog({
                             <div
                               key={media.id}
                               className={`p-2 rounded border cursor-pointer transition-colors text-sm ${
-                                followUpMedia?.id === media.id ? "bg-primary/15 border-primary/30" : "hover:bg-muted"
+                                followUpMedia?.id === media.id ? "bg-primary/15 border-primary/30" : "hover:bg-primary/10"
                               }`}
                               onClick={() => setFollowUpMedia(media)}
                             >

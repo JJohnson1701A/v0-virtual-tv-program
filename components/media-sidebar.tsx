@@ -24,7 +24,7 @@ export function MediaSidebar({ activeType, onTypeChange, onAddMedia }: MediaSide
       {mediaTypes.map(({ type, label }) => (
         <div
           key={type}
-          className={`flex justify-between items-center px-4 py-3 border-b ${activeType === type ? "bg-primary/15 text-primary font-medium" : ""}`}
+          className={`flex justify-between items-center px-4 py-3 border-b transition-colors ${activeType === type ? "bg-primary/15 text-primary font-medium" : "hover:bg-primary/10"}`}
         >
           <button onClick={() => onTypeChange(type)} className="text-left flex-1">
             {label}

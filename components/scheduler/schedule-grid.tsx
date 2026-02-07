@@ -368,7 +368,7 @@ export function ScheduleGrid({
           <ScrollArea className="flex-1">
             <div className="min-w-full">
               {timeSlots.map((timeSlot, timeIndex) => (
-                <div key={timeSlot.time12} className="grid grid-cols-8 gap-0 border-b hover:bg-gray-50">
+                <div key={timeSlot.time12} className="grid grid-cols-8 gap-0 border-b hover:bg-primary/5">
                   {/* Time Column */}
                   <div className="p-2 border-r text-sm font-medium bg-white sticky left-0 z-5">{timeSlot.time12}</div>
 

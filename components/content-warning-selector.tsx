@@ -88,7 +88,7 @@ export function ContentWarningSelector({ value, onChange }: ContentWarningSelect
                     <button
                       type="button"
                       onClick={() => toggleCategory(category.id)}
-                      className="p-1 hover:bg-gray-100 rounded"
+                      className="p-1 hover:bg-primary/10 rounded transition-colors"
                     >
                       {isExpanded ? (
                         <ChevronDown className="h-4 w-4" />

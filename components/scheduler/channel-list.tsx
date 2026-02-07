@@ -35,8 +35,8 @@ export function ChannelList({ channels, selectedChannelId, onChannelSelect, isLo
           <button
             key={channel.id}
             onClick={() => onChannelSelect(channel.id)}
-            className={`w-full text-left p-2 rounded text-sm hover:bg-muted transition-colors ${
-              selectedChannelId === channel.id ? "bg-primary/15 border border-primary/30 text-primary" : ""
+            className={`w-full text-left p-2 rounded text-sm transition-colors ${
+              selectedChannelId === channel.id ? "bg-primary/15 border border-primary/30 text-primary" : "hover:bg-primary/10"
             }`}
           >
             <div className="font-medium">

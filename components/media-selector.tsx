@@ -158,7 +158,7 @@ export function MediaSelector({
 
                     return (
                       <div key={media.id} className="space-y-2">
-                        <div className="flex items-start space-x-3 p-2 rounded hover:bg-gray-50">
+                        <div className="flex items-start space-x-3 p-2 rounded transition-colors hover:bg-primary/10">
                           <Checkbox
                             id={`media-${media.id}`}
                             checked={isSelected}
