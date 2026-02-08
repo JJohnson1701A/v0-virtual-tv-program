@@ -17,6 +17,7 @@ import { useBlocksMarathons } from "@/hooks/use-blocks-marathons"
 import type { MediaItem, TVShowEpisode, FillerType, CommercialCategory, TimeOfYear } from "@/types/media"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 import { ContentWarningSelector } from "@/components/content-warning-selector"
+import { programFormatOptions } from "@/lib/program-format-options"
 import type { ContentWarningData } from "@/lib/content-warnings"
 
 interface MediaEditDialogProps {
@@ -91,37 +92,6 @@ const timeOfYearOptions: { value: TimeOfYear; label: string }[] = [
   { value: "Halloween (10-1 to 10-31)", label: "Halloween (10-1 to 10-31)" },
   { value: "Thanksgiving (11-1 to 11-30)", label: "Thanksgiving (11-1 to 11-30)" },
   { value: "Christmas (12-1 to 12-25)", label: "Christmas (12-1 to 12-25)" },
-]
-
-const showCategoryOptions = [
-  { type: "header", label: "-Kids-" },
-  { type: "option", value: "kids cartoon", label: "Kids Cartoon" },
-  { type: "option", value: "kids live", label: "Kids Live" },
-  { type: "option", value: "kids educational", label: "Kids Educational" },
-  { type: "header", label: "-General/Scripted-" },
-  { type: "option", value: "sitcom", label: "Sitcom" },
-  { type: "option", value: "drama", label: "Drama" },
-  { type: "option", value: "soap opera", label: "Soap Opera" },
-  { type: "option", value: "sketch comedy", label: "Sketch Comedy" },
-  { type: "option", value: "variety", label: "Variety" },
-  { type: "header", label: "-Genre-Specific-" },
-  { type: "option", value: "animation (general/adult)", label: "Animation (General/Adult)" },
-  { type: "option", value: "anime", label: "Anime" },
-  { type: "option", value: "horror", label: "Horror" },
-  { type: "option", value: "romance", label: "Romance" },
-  { type: "option", value: "sci-fi/fantasy", label: "Sci-Fi/Fantasy" },
-  { type: "header", label: "-Meta/Scheduling-" },
-  { type: "option", value: "classic/retro", label: "Classic/Retro" },
-  { type: "option", value: "rerun", label: "Rerun" },
-  { type: "header", label: "-Music/Performance-" },
-  { type: "option", value: "concert", label: "Concert" },
-  { type: "option", value: "sports", label: "Sports" },
-  { type: "header", label: "-Talk/Late-Night-" },
-  { type: "option", value: "talk", label: "Talk" },
-  { type: "option", value: "late-night", label: "Late-Night" },
-  { type: "header", label: "-Unscripted/Non-Fiction-" },
-  { type: "option", value: "game show", label: "Game Show" },
-  { type: "option", value: "reality/unscripted", label: "Reality/Unscripted" },
 ]
 
 // Genre options for Promos
@@ -400,19 +370,6 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
 
   const handleNewEpisodeChange = (field: keyof TVShowEpisode, value: any) => {
     setNewEpisode((prev) => ({ ...prev, [field]: value }))
-  }
-
-  // Multi-select handlers
-  const handleShowCategoryToggle = (categoryValue: string, checked: boolean) => {
-    const currentCategories = Array.isArray(editedItem.category) ? editedItem.category : []
-    if (checked) {
-      handleChange("category", [...currentCategories, categoryValue])
-    } else {
-      handleChange(
-        "category",
-        currentCategories.filter((cat) => cat !== categoryValue),
-      )
-    }
   }
 
   const handleChannelToggle = (channelId: string, checked: boolean) => {
@@ -1118,42 +1075,33 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                       </Select>
                     </div>
 
-                    {/* Multi-select Show Category */}
+                    {/* Program Format (single-select) */}
                     <div className="grid gap-2">
-                      <Label htmlFor="category">Show Category (Multi-select)</Label>
-                      <div className="border rounded-md p-3 max-h-32 overflow-y-auto">
-                        <div className="flex flex-col gap-2">
-                          {showCategoryOptions.map((item, index) => {
-                            if (item.type === "header") {
-                              return (
-                                <div
-                                  key={`header-${index}`}
-                                  className="font-semibold text-xs text-muted-foreground mt-2 first:mt-0"
-                                >
-                                  {item.label}
-                                </div>
-                              )
-                            }
-
-                            const currentCategories = Array.isArray(editedItem.category) ? editedItem.category : []
-                            const isChecked = currentCategories.includes(item.value)
-                            return (
-                              <div key={item.value} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`category-${item.value}`}
-                                  checked={isChecked}
-                                  onCheckedChange={(checked) =>
-                                    handleShowCategoryToggle(item.value, checked as boolean)
-                                  }
-                                />
-                                <label htmlFor={`category-${item.value}`} className="text-sm cursor-pointer">
-                                  {item.label}
-                                </label>
+                      <Label htmlFor="programFormat">Program Format</Label>
+                      <Select
+                        value={editedItem.programFormat || ""}
+                        onValueChange={(value) => handleChange("programFormat", value || undefined)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select program format" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {programFormatOptions.map((item, index) =>
+                            item.type === "header" ? (
+                              <div
+                                key={`header-${index}`}
+                                className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t first:border-t-0 mt-1 first:mt-0"
+                              >
+                                {item.label}
                               </div>
-                            )
-                          })}
-                        </div>
-                      </div>
+                            ) : (
+                              <SelectItem key={item.value} value={item.value!}>
+                                {item.label}
+                              </SelectItem>
+                            ),
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 )}

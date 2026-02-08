@@ -18,6 +18,7 @@ import { MediaSelector } from "@/components/media-selector"
 import type { Channel, OverlayPosition, ChannelType } from "@/types/channel"
 import type { MediaItem } from "@/types/media"
 import { ContentWarningFilterSelector } from "@/components/content-warning-filter"
+import { programFormatOptions, getOptionsForCategory } from "@/lib/program-format-options"
 
 interface CreateChannelDialogProps {
   channel: Channel | null
@@ -121,30 +122,6 @@ const movieGenreOptions = [
   "Western",
 ]
 
-const showCategoryOptions = [
-  "kids cartoon",
-  "kids live",
-  "kids educational",
-  "sitcom",
-  "drama",
-  "soap opera",
-  "sketch comedy",
-  "variety",
-  "animation (general/adult)",
-  "anime",
-  "horror",
-  "romance",
-  "sci-fi/fantasy",
-  "classic/retro",
-  "rerun",
-  "concert",
-  "sports",
-  "talk",
-  "late-night",
-  "game show",
-  "reality/unscripted",
-]
-
 const channelTypeOptions: ChannelType[] = [
   "Over-the-Air (OTA)",
   "Basic Cable",
@@ -184,6 +161,8 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
     autoSchedulerMovieGenreExclude: [] as string[],
     autoSchedulerShowCategory: [] as string[],
     autoSchedulerShowCategoryExclude: [] as string[],
+    autoSchedulerProgramFormat: [] as string[],
+    autoSchedulerProgramFormatExclude: [] as string[],
     contentWarningFilter: { include: [] as string[], exclude: [] as string[] },
     channelType: undefined as ChannelType | undefined,
   })
@@ -214,6 +193,8 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
         autoSchedulerMovieGenreExclude: channel.autoSchedulerMovieGenreExclude || [],
         autoSchedulerShowCategory: channel.autoSchedulerShowCategory || [],
         autoSchedulerShowCategoryExclude: channel.autoSchedulerShowCategoryExclude || [],
+        autoSchedulerProgramFormat: channel.autoSchedulerProgramFormat || [],
+        autoSchedulerProgramFormatExclude: channel.autoSchedulerProgramFormatExclude || [],
         contentWarningFilter: channel.contentWarningFilter || { include: [], exclude: [] },
         channelType: channel.channelType,
       })
@@ -287,15 +268,39 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
     )
   }
 
-  const handleShowCategoryToggle = (category: string, newState: TriState) => {
+  const handleProgramFormatToggle = (value: string, newState: TriState) => {
     handleTriStateChange(
-      category,
+      value,
       newState,
-      "autoSchedulerShowCategory",
-      "autoSchedulerShowCategoryExclude",
-      formData.autoSchedulerShowCategory,
-      formData.autoSchedulerShowCategoryExclude
+      "autoSchedulerProgramFormat",
+      "autoSchedulerProgramFormatExclude",
+      formData.autoSchedulerProgramFormat,
+      formData.autoSchedulerProgramFormatExclude
     )
+  }
+
+  const handleProgramFormatCategoryToggle = (categoryLabel: string, newState: TriState) => {
+    const children = getOptionsForCategory(categoryLabel)
+    let newInclude = formData.autoSchedulerProgramFormat.filter((v) => !children.includes(v))
+    let newExclude = formData.autoSchedulerProgramFormatExclude.filter((v) => !children.includes(v))
+
+    if (newState === "checked") {
+      newInclude = [...newInclude, ...children]
+    } else if (newState === "excluded") {
+      newExclude = [...newExclude, ...children]
+    }
+
+    handleInputChange("autoSchedulerProgramFormat", newInclude)
+    handleInputChange("autoSchedulerProgramFormatExclude", newExclude)
+  }
+
+  const getProgramFormatCategoryState = (categoryLabel: string): TriState => {
+    const children = getOptionsForCategory(categoryLabel)
+    const allChecked = children.every((c) => formData.autoSchedulerProgramFormat.includes(c))
+    const allExcluded = children.every((c) => formData.autoSchedulerProgramFormatExclude.includes(c))
+    if (allChecked) return "checked"
+    if (allExcluded) return "excluded"
+    return "unchecked"
   }
 
   const handleMediaSelection = (selectedMedia: MediaItem[], selectedSeasons?: Record<string, number[]>) => {
@@ -331,6 +336,8 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
       autoSchedulerMovieGenreExclude: formData.autoSchedulerMovieGenreExclude,
       autoSchedulerShowCategory: formData.autoSchedulerShowCategory,
       autoSchedulerShowCategoryExclude: formData.autoSchedulerShowCategoryExclude,
+      autoSchedulerProgramFormat: formData.autoSchedulerProgramFormat,
+      autoSchedulerProgramFormatExclude: formData.autoSchedulerProgramFormatExclude,
       contentWarningFilter: formData.contentWarningFilter,
       channelType: formData.channelType,
     }
@@ -582,23 +589,42 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
                 </div>
               </div>
 
-              {/* Show Category Multi-Select */}
+              {/* Program Format Multi-Select */}
               <div className="space-y-2">
-                <Label>Show Category</Label>
-                <p className="text-xs text-muted-foreground">Click to cycle: blank (neutral) → check (include) → X (exclude)</p>
-                <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
-                  {showCategoryOptions.map((category) => (
-                    <div key={category} className="flex items-center space-x-2">
-                      <TriStateCheckbox
-                        id={`show-category-${category}`}
-                        value={getTriState(category, formData.autoSchedulerShowCategory, formData.autoSchedulerShowCategoryExclude)}
-                        onValueChange={(newState) => handleShowCategoryToggle(category, newState)}
-                      />
-                      <label htmlFor={`show-category-${category}`} className="text-sm capitalize cursor-pointer">
-                        {category}
-                      </label>
-                    </div>
-                  ))}
+                <Label>Program Format</Label>
+                <p className="text-xs text-muted-foreground">Click to cycle: blank (neutral) &rarr; check (include) &rarr; X (exclude). Category headers toggle all items in that group.</p>
+                <div className="border rounded-md p-3 max-h-64 overflow-y-auto">
+                  <div className="flex flex-col gap-1">
+                    {programFormatOptions.map((item, index) => {
+                      if (item.type === "header") {
+                        return (
+                          <div key={`header-${index}`} className="flex items-center gap-2 mt-2 first:mt-0">
+                            <TriStateCheckbox
+                              id={`pf-cat-${item.label}`}
+                              value={getProgramFormatCategoryState(item.label)}
+                              onValueChange={(newState) => handleProgramFormatCategoryToggle(item.label, newState)}
+                            />
+                            <label htmlFor={`pf-cat-${item.label}`} className="font-semibold text-xs text-muted-foreground cursor-pointer">
+                              {item.label}
+                            </label>
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div key={item.value} className="flex items-center gap-2 ml-5">
+                          <TriStateCheckbox
+                            id={`pf-${item.value}`}
+                            value={getTriState(item.value!, formData.autoSchedulerProgramFormat, formData.autoSchedulerProgramFormatExclude)}
+                            onValueChange={(newState) => handleProgramFormatToggle(item.value!, newState)}
+                          />
+                          <label htmlFor={`pf-${item.value}`} className="text-sm cursor-pointer">
+                            {item.label}
+                          </label>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
 

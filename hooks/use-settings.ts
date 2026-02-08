@@ -65,6 +65,8 @@ export interface DaypartSettings {
   mediaTypes: string[]
   audience: string[]
   genre: string[]
+  programFormat: string[]
+  programFormatExclude: string[]
 }
 
 export interface SingleChannelTypeSettings {
@@ -128,6 +130,8 @@ const createDefaultDaypartSettings = (startTime: string, endTime: string): Daypa
   mediaTypes: [],
   audience: [],
   genre: [],
+  programFormat: [],
+  programFormatExclude: [],
 })
 
 const createDefaultSingleChannelTypeSettings = (): SingleChannelTypeSettings => ({

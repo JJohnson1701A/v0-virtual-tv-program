@@ -16,8 +16,10 @@ import { FileUpload } from "@/components/file-upload"
 import { RefreshCwIcon, MonitorIcon, CalendarIcon, SunIcon, MoonIcon } from "lucide-react"
 import type { RatingAudioFiles } from "@/hooks/use-settings"
 import { Checkbox } from "@/components/ui/checkbox"
+import { TriStateCheckbox, type TriState } from "@/components/ui/tri-state-checkbox"
 import { useTheme } from "next-themes"
 import type { AccentColor } from "@/types/settings"
+import { programFormatOptions, getOptionsForCategory } from "@/lib/program-format-options"
 
 export function SettingsPanel() {
   const {
@@ -260,13 +262,15 @@ export function SettingsPanel() {
 
   const getDaypartSettings = (daypart: string) => {
     const currentSettings = getCurrentChannelTypeSettings()
-    if (!currentSettings?.dayparts) return { mediaTypes: [], audience: [], genre: [] }
+    if (!currentSettings?.dayparts) return { mediaTypes: [], audience: [], genre: [], programFormat: [], programFormatExclude: [] }
     const dp = currentSettings.dayparts[daypart as keyof typeof currentSettings.dayparts]
-    if (!dp) return { mediaTypes: [], audience: [], genre: [] }
+    if (!dp) return { mediaTypes: [], audience: [], genre: [], programFormat: [], programFormatExclude: [] }
     return {
       mediaTypes: dp.mediaTypes || [],
       audience: dp.audience || [],
       genre: dp.genre || [],
+      programFormat: dp.programFormat || [],
+      programFormatExclude: dp.programFormatExclude || [],
     }
   }
 
@@ -327,6 +331,46 @@ export function SettingsPanel() {
         currentGenre.filter((g) => g !== genre),
       )
     }
+  }
+
+  const getDaypartPFTriState = (daypart: string, value: string): TriState => {
+    const ds = getDaypartSettings(daypart)
+    if (ds.programFormat.includes(value)) return "checked"
+    if (ds.programFormatExclude.includes(value)) return "excluded"
+    return "unchecked"
+  }
+
+  const handleDaypartPFToggle = (daypart: string, value: string, newState: TriState) => {
+    const ds = getDaypartSettings(daypart)
+    const dk = daypart as keyof typeof settings.channelTypeSettings.dayparts
+    const newInclude = ds.programFormat.filter((v) => v !== value)
+    const newExclude = ds.programFormatExclude.filter((v) => v !== value)
+    if (newState === "checked") newInclude.push(value)
+    else if (newState === "excluded") newExclude.push(value)
+    updateDaypartSetting(dk, "programFormat", newInclude)
+    updateDaypartSetting(dk, "programFormatExclude", newExclude)
+  }
+
+  const getDaypartPFCategoryState = (daypart: string, categoryLabel: string): TriState => {
+    const ds = getDaypartSettings(daypart)
+    const children = getOptionsForCategory(categoryLabel)
+    const allChecked = children.every((c) => ds.programFormat.includes(c))
+    const allExcluded = children.every((c) => ds.programFormatExclude.includes(c))
+    if (allChecked) return "checked"
+    if (allExcluded) return "excluded"
+    return "unchecked"
+  }
+
+  const handleDaypartPFCategoryToggle = (daypart: string, categoryLabel: string, newState: TriState) => {
+    const children = getOptionsForCategory(categoryLabel)
+    const ds = getDaypartSettings(daypart)
+    const dk = daypart as keyof typeof settings.channelTypeSettings.dayparts
+    let newInclude = ds.programFormat.filter((v) => !children.includes(v))
+    let newExclude = ds.programFormatExclude.filter((v) => !children.includes(v))
+    if (newState === "checked") newInclude = [...newInclude, ...children]
+    else if (newState === "excluded") newExclude = [...newExclude, ...children]
+    updateDaypartSetting(dk, "programFormat", newInclude)
+    updateDaypartSetting(dk, "programFormatExclude", newExclude)
   }
 
   return (
@@ -908,7 +952,7 @@ export function SettingsPanel() {
                 <div key={daypart.key} className="space-y-3 border rounded-lg p-4">
                   <Label className="text-sm font-medium">{daypart.label}</Label>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     {/* Media Types */}
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Media Types</Label>
@@ -972,6 +1016,41 @@ export function SettingsPanel() {
                             </label>
                           </div>
                         ))}
+                      </div>
+                    </div>
+
+                    {/* Program Format */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Program Format</Label>
+                      <div className="border rounded-md p-2 max-h-32 overflow-y-auto space-y-0.5">
+                        {programFormatOptions.map((item, index) => {
+                          if (item.type === "header") {
+                            return (
+                              <div key={`${daypart.key}-pfh-${index}`} className="flex items-center gap-1.5 mt-1.5 first:mt-0">
+                                <TriStateCheckbox
+                                  id={`${daypart.key}-pfcat-${item.label}`}
+                                  value={getDaypartPFCategoryState(daypart.key, item.label)}
+                                  onValueChange={(ns) => handleDaypartPFCategoryToggle(daypart.key, item.label, ns)}
+                                />
+                                <label htmlFor={`${daypart.key}-pfcat-${item.label}`} className="text-[10px] font-semibold text-muted-foreground cursor-pointer">
+                                  {item.label}
+                                </label>
+                              </div>
+                            )
+                          }
+                          return (
+                            <div key={`${daypart.key}-pf-${item.value}`} className="flex items-center gap-1.5 ml-4">
+                              <TriStateCheckbox
+                                id={`${daypart.key}-pf-${item.value}`}
+                                value={getDaypartPFTriState(daypart.key, item.value!)}
+                                onValueChange={(ns) => handleDaypartPFToggle(daypart.key, item.value!, ns)}
+                              />
+                              <label htmlFor={`${daypart.key}-pf-${item.value}`} className="text-xs cursor-pointer">
+                                {item.label}
+                              </label>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   </div>

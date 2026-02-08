@@ -38,6 +38,8 @@ export interface Channel {
   autoSchedulerMovieGenreExclude?: string[]
   autoSchedulerShowCategory?: string[]
   autoSchedulerShowCategoryExclude?: string[]
+  autoSchedulerProgramFormat?: string[]
+  autoSchedulerProgramFormatExclude?: string[]
   contentWarningFilter?: {
     include: string[]
     exclude: string[]

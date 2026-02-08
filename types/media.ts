@@ -88,6 +88,35 @@ export type Season =
   | "Summer Break (06-01 to 08-31)"
   | "Independence Day (06-25 to 07-10)"
 
+export type ProgramFormat =
+  | "Live-Action (Scripted)"
+  | "Animated"
+  | "Hybrid"
+  | "Puppetry"
+  | "Machinima"
+  | "Reality"
+  | "Docu-Reality"
+  | "Lifestyle"
+  | "Talk Show"
+  | "Game Show"
+  | "Documentary"
+  | "Educational"
+  | "How-To/Demonstration"
+  | "News/Current Affairs"
+  | "Variety"
+  | "Music Performance"
+  | "Stand-Up Comedy"
+  | "Theatrical"
+  | "Live Event"
+  | "Sports"
+  | "Special Presentation"
+  | "Anthology"
+  | "Ambient"
+  | "Process"
+  | "ASMR / Sensory"
+  | "Wellness"
+  | "Looped Programming"
+
 export type MovieRating = "G" | "PG" | "PG-13" | "R" | "NC-17" | "X"
 export type TVRating = "TV-Y" | "TV-Y7" | "TV-G" | "TV-PG" | "TV-14" | "TV-MA"
 
@@ -148,4 +177,6 @@ export interface MediaItem {
   excludedCommercials?: CommercialCategory[]
   // Channel overlay position override for TV shows
   overlayPositionOverride?: OverlayPosition
+  // Program format for TV shows (single value)
+  programFormat?: ProgramFormat
 }
