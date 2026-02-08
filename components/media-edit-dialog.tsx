@@ -339,6 +339,8 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
     assignedChannelId: item.assignedChannelId || [],
     seasons: item.seasons || [],
     contentWarningData: item.contentWarningData || { enabled: false, categories: [], subcategories: [] },
+    allowedCommercials: item.allowedCommercials || [],
+    excludedCommercials: item.excludedCommercials || [],
   })
   const [activeTab, setActiveTab] = useState("details")
   const [newEpisode, setNewEpisode] = useState<TVShowEpisode>({
@@ -450,6 +452,33 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
 
     handleChange("seasons", newSeasons)
     handleChange("seasonsExclude", newExcluded)
+  }
+
+  // Get tri-state value for Allowable Commercials
+  const getCommercialTriState = (category: string): TriState => {
+    const allowed = Array.isArray(editedItem.allowedCommercials) ? editedItem.allowedCommercials : []
+    const excluded = Array.isArray(editedItem.excludedCommercials) ? editedItem.excludedCommercials : []
+    if (allowed.includes(category as any)) return "checked"
+    if (excluded.includes(category as any)) return "excluded"
+    return "unchecked"
+  }
+
+  const handleCommercialToggle = (category: string, newState: TriState) => {
+    const allowed = Array.isArray(editedItem.allowedCommercials) ? editedItem.allowedCommercials : []
+    const excluded = Array.isArray(editedItem.excludedCommercials) ? editedItem.excludedCommercials : []
+
+    // Remove from both arrays first
+    const newAllowed = allowed.filter((c) => c !== category)
+    const newExcluded = excluded.filter((c) => c !== category)
+
+    if (newState === "checked") {
+      newAllowed.push(category as any)
+    } else if (newState === "excluded") {
+      newExcluded.push(category as any)
+    }
+
+    handleChange("allowedCommercials", newAllowed)
+    handleChange("excludedCommercials", newExcluded)
   }
 
   const handleRatingChange = (value: string, isMovieRating: boolean) => {
@@ -972,6 +1001,35 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                   onChange={(data) => handleChange("contentWarningData", data)}
                 />
               )}
+
+                {/* Allowable Commercials - show for TV shows only */}
+                {isTVShow && (
+                  <div className="grid gap-2">
+                    <Label>Allowable Commercials</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Click to cycle: blank (all allowed) &rarr; check (only allow) &rarr; X (exclude).
+                      If all blank, every commercial category is allowed.
+                      If any are checked, only those checked are allowed.
+                      If any are X'd (rest blank), those are excluded.
+                    </p>
+                    <div className="border rounded-md p-3 max-h-48 overflow-y-auto">
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                        {commercialCategoryOptions.map((option) => (
+                          <div key={option.value} className="flex items-center gap-2">
+                            <TriStateCheckbox
+                              id={`commercial-${option.value}`}
+                              value={getCommercialTriState(option.value)}
+                              onValueChange={(newState) => handleCommercialToggle(option.value, newState)}
+                            />
+                            <label htmlFor={`commercial-${option.value}`} className="text-sm cursor-pointer">
+                              {option.label}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid gap-2">
                   <Label htmlFor="seasons">Time of Year (Multi-select)</Label>

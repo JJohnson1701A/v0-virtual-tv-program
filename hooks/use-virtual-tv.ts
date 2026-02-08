@@ -9,6 +9,7 @@ export interface CommercialItem {
   title: string
   filePath: string
   runtime?: number
+  commercialCategory?: string
 }
 
 export interface CurrentMedia {
@@ -26,6 +27,8 @@ export interface CurrentMedia {
   filePath?: string
   breaks?: string
   runtime?: number
+  allowedCommercials?: string[]
+  excludedCommercials?: string[]
 }
 
 export function useVirtualTV(channelNumber: number) {
@@ -153,6 +156,8 @@ export function useVirtualTV(channelNumber: number) {
         filePath,
         breaks: breaksStr,
         runtime: mediaRuntime,
+        allowedCommercials: mediaItem.allowedCommercials || [],
+        excludedCommercials: mediaItem.excludedCommercials || [],
       }
 
       // Add episode info for TV shows
@@ -190,6 +195,7 @@ export function useVirtualTV(channelNumber: number) {
           title: f.title,
           filePath: f.files[0],
           runtime: f.runtime,
+          commercialCategory: f.commercialCategory,
         }))
       setCommercials(availableCommercials)
 

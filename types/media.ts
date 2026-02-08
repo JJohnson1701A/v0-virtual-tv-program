@@ -141,4 +141,7 @@ export interface MediaItem {
   isMovieSeries?: boolean
   seriesName?: string
   seriesOrder?: number
+  // Allowable commercials for TV shows
+  allowedCommercials?: CommercialCategory[]
+  excludedCommercials?: CommercialCategory[]
 }

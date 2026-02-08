@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useState, useCallback } from "react"
+import { useRef, useEffect, useState, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { ChevronUpIcon, ChevronDownIcon } from "lucide-react"
 import type { Channel } from "@/types/channel"
@@ -117,6 +117,29 @@ export function VirtualTVDisplay({
 
   // Current commercial info for display
   const [currentCommercialTitle, setCurrentCommercialTitle] = useState<string>("")
+
+  // Filter commercials based on the current media's allowed/excluded lists
+  const filteredCommercials = useMemo(() => {
+    const allowed = media?.allowedCommercials ?? []
+    const excluded = media?.excludedCommercials ?? []
+    const hasAllowed = allowed.length > 0
+    const hasExcluded = excluded.length > 0
+
+    if (!hasAllowed && !hasExcluded) {
+      // All blank = all allowed
+      return commercials
+    }
+
+    return commercials.filter((c) => {
+      const cat = c.commercialCategory || ""
+      if (hasAllowed) {
+        // Only allow checked categories
+        return allowed.includes(cat)
+      }
+      // Exclude X'd categories
+      return !excluded.includes(cat)
+    })
+  }, [commercials, media?.allowedCommercials, media?.excludedCommercials])
 
   // Track media id so we reset state when media changes
   const mediaIdRef = useRef<string | null>(null)
