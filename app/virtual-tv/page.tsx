@@ -17,7 +17,7 @@ export default function VirtualTVPage() {
   const [showMediaInfo, setShowMediaInfo] = useState(false)
   const [channelInputBuffer, setChannelInputBuffer] = useState("")
 
-  const { currentMedia, isStatic } = useVirtualTV(currentChannelNumber)
+  const { currentMedia, isStatic, commercials } = useVirtualTV(currentChannelNumber)
 
   // Get current channel object
   const currentChannel = channels.find((c) => c.number === currentChannelNumber)
@@ -163,6 +163,7 @@ export default function VirtualTVPage() {
           channel={currentChannel}
           media={currentMedia}
           isStatic={isStatic}
+          commercials={commercials}
           onChannelUp={goToNextChannel}
           onChannelDown={goToPreviousChannel}
         />

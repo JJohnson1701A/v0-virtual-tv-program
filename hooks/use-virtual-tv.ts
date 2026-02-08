@@ -4,6 +4,13 @@ import { useState, useEffect } from "react"
 import { useMediaLibrary } from "./use-media-library"
 import { useBlocksMarathons } from "./use-blocks-marathons"
 
+export interface CommercialItem {
+  id: string
+  title: string
+  filePath: string
+  runtime?: number
+}
+
 export interface CurrentMedia {
   id: string
   title: string
@@ -17,12 +24,15 @@ export interface CurrentMedia {
   artist?: string
   album?: string
   filePath?: string
+  breaks?: string
+  runtime?: number
 }
 
 export function useVirtualTV(channelNumber: number) {
   const [currentMedia, setCurrentMedia] = useState<CurrentMedia | null>(null)
   const [isStatic, setIsStatic] = useState(true)
   const [tick, setTick] = useState(0)
+  const [commercials, setCommercials] = useState<CommercialItem[]>([])
 
   // Get all media libraries
   const { mediaItems: movies } = useMediaLibrary("movies", "a-z")
@@ -120,14 +130,17 @@ export function useVirtualTV(channelNumber: number) {
     if (mediaItem) {
       // Determine the file path to play
       let filePath: string | undefined
+      let breaksStr: string | undefined
+      let mediaRuntime: number | undefined = mediaItem.runtime
 
       if (mediaItem.type === "tvshows" && mediaItem.episodes && mediaItem.episodes.length > 0) {
         // For TV shows, pick the first episode's file
         const episode = mediaItem.episodes[0]
         filePath = episode?.file
+        breaksStr = episode?.breaks
       } else if (mediaItem.files && mediaItem.files.length > 0) {
-        // For movies, music videos, filler, podcasts, livestreams, use the first file
         filePath = mediaItem.files[0]
+        breaksStr = mediaItem.breaks
       }
 
       const media: CurrentMedia = {
@@ -138,6 +151,8 @@ export function useVirtualTV(channelNumber: number) {
         endTime: currentScheduleItem.endTime,
         category: typeof mediaItem.category === "string" ? mediaItem.category : undefined,
         filePath,
+        breaks: breaksStr,
+        runtime: mediaRuntime,
       }
 
       // Add episode info for TV shows
@@ -147,6 +162,9 @@ export function useVirtualTV(channelNumber: number) {
           media.episodeTitle = `S${episode.seasonNumber}E${episode.episodeNumber}: ${episode.title}`
           if (episode.file) {
             media.filePath = episode.file
+          }
+          if (episode.breaks) {
+            media.breaks = episode.breaks
           }
         }
       }
@@ -163,6 +181,17 @@ export function useVirtualTV(channelNumber: number) {
         media.artist = mediaItem.bandName || "Unknown Artist"
         media.album = mediaItem.albumName || "Unknown Album"
       }
+
+      // Build commercials list from all filler items with fillerType === "commercial"
+      const availableCommercials: CommercialItem[] = filler
+        .filter((f) => f.fillerType === "commercial" && f.files && f.files.length > 0)
+        .map((f) => ({
+          id: f.id,
+          title: f.title,
+          filePath: f.files[0],
+          runtime: f.runtime,
+        }))
+      setCommercials(availableCommercials)
 
       setCurrentMedia(media)
       setIsStatic(false)
@@ -211,5 +240,6 @@ export function useVirtualTV(channelNumber: number) {
   return {
     currentMedia,
     isStatic,
+    commercials,
   }
 }

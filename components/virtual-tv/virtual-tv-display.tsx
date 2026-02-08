@@ -4,31 +4,126 @@ import { useRef, useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { ChevronUpIcon, ChevronDownIcon } from "lucide-react"
 import type { Channel } from "@/types/channel"
-import type { CurrentMedia } from "@/hooks/use-virtual-tv"
+import type { CurrentMedia, CommercialItem } from "@/hooks/use-virtual-tv"
+
+// ---- helpers ----
+
+/** Parse "00:02:28.00" into seconds */
+function parseTimecode(tc: string): number {
+  const cleaned = tc.trim()
+  const parts = cleaned.split(":")
+  if (parts.length === 3) {
+    const h = parseFloat(parts[0])
+    const m = parseFloat(parts[1])
+    const s = parseFloat(parts[2])
+    return h * 3600 + m * 60 + s
+  }
+  if (parts.length === 2) {
+    const m = parseFloat(parts[0])
+    const s = parseFloat(parts[1])
+    return m * 60 + s
+  }
+  return parseFloat(cleaned) || 0
+}
+
+/** Parse a comma-separated breaks string into sorted seconds array */
+function parseBreaks(breaks?: string): number[] {
+  if (!breaks || !breaks.trim()) return []
+  return breaks
+    .split(",")
+    .map(parseTimecode)
+    .filter((t) => t > 0)
+    .sort((a, b) => a - b)
+}
+
+/** Parse "8:00 PM" style time into { hours24, minutes } */
+function parseScheduleTime(timeStr: string): { hours24: number; minutes: number } {
+  const [time, period] = timeStr.split(" ")
+  const [h, m] = time.split(":").map(Number)
+  const hours24 = (h % 12) + (period === "PM" ? 12 : 0)
+  return { hours24, minutes: m }
+}
+
+/** Get total seconds in a schedule block */
+function getBlockDurationSeconds(startTime: string, endTime: string): number {
+  const start = parseScheduleTime(startTime)
+  const end = parseScheduleTime(endTime)
+  let startSec = start.hours24 * 3600 + start.minutes * 60
+  let endSec = end.hours24 * 3600 + end.minutes * 60
+  // handle overnight
+  if (endSec <= startSec) endSec += 24 * 3600
+  return endSec - startSec
+}
+
+/** Pick a random item from an array */
+function pickRandom<T>(arr: T[]): T | undefined {
+  if (arr.length === 0) return undefined
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+// ---- types ----
+
+type PlaybackState =
+  | "loading"
+  | "playing-main"
+  | "commercial-break"
+  | "padding-commercials"
+  | "ended"
+  | "error"
+  | "no-file"
+
+// ---- component ----
 
 interface VirtualTVDisplayProps {
   channel?: Channel
   media?: CurrentMedia | null
   isStatic: boolean
+  commercials: CommercialItem[]
   onChannelUp: () => void
   onChannelDown: () => void
 }
 
-export function VirtualTVDisplay({ channel, media, isStatic, onChannelUp, onChannelDown }: VirtualTVDisplayProps) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [videoError, setVideoError] = useState<string | null>(null)
-  const [isVideoLoading, setIsVideoLoading] = useState(false)
+export function VirtualTVDisplay({
+  channel,
+  media,
+  isStatic,
+  commercials,
+  onChannelUp,
+  onChannelDown,
+}: VirtualTVDisplayProps) {
+  const mainVideoRef = useRef<HTMLVideoElement>(null)
+  const commercialVideoRef = useRef<HTMLVideoElement>(null)
 
-  // Resolve the file path into a playable source URL.
-  // Local file paths stored in the media library look like:
-  //   "C:\Videos\movie.mp4" or "/home/user/movie.mp4"
-  // Blob URLs from the File API look like: "blob:http://..."
-  // Object URLs from file-upload look like: "blob:..."
-  // HTTP(S) URLs are used as-is.
+  const [playbackState, setPlaybackState] = useState<PlaybackState>("loading")
+  const playbackStateRef = useRef<PlaybackState>("loading")
+  const [videoError, setVideoError] = useState<string | null>(null)
+
+  // Break tracking
+  const breakTimesRef = useRef<number[]>([])
+  const nextBreakIndexRef = useRef(0)
+  const pausedForBreakRef = useRef(false)
+
+  // Padding tracking
+  const blockEndRef = useRef(0) // epoch seconds when schedule block ends
+
+  // Sync setter that updates both state and ref
+  const updatePlaybackState = useCallback((newState: PlaybackState | ((prev: PlaybackState) => PlaybackState)) => {
+    setPlaybackState((prev) => {
+      const resolved = typeof newState === "function" ? newState(prev) : newState
+      playbackStateRef.current = resolved
+      return resolved
+    })
+  }, [])
+
+  // Current commercial info for display
+  const [currentCommercialTitle, setCurrentCommercialTitle] = useState<string>("")
+
+  // Track media id so we reset state when media changes
+  const mediaIdRef = useRef<string | null>(null)
+
+  // ---- resolve video src ----
   const getVideoSrc = useCallback((filePath?: string): string | null => {
     if (!filePath) return null
-
-    // Already a usable URL (http, https, blob, data)
     if (
       filePath.startsWith("http://") ||
       filePath.startsWith("https://") ||
@@ -37,36 +132,57 @@ export function VirtualTVDisplay({ channel, media, isStatic, onChannelUp, onChan
     ) {
       return filePath
     }
-
-    // Local file path -- browsers can't load arbitrary local paths directly.
-    // We'll attempt to use the File System Access API via an object URL that
-    // was previously stored, or fall back to showing an informational message.
     return filePath
   }, [])
 
   const videoSrc = media?.filePath ? getVideoSrc(media.filePath) : null
 
-  // Play/load the video whenever the source changes
+  // ---- compute block end epoch ----
   useEffect(() => {
+    if (!media) return
+    const now = new Date()
+    const end = parseScheduleTime(media.endTime)
+    const blockEnd = new Date(now)
+    blockEnd.setHours(end.hours24, end.minutes, 0, 0)
+    // if block end is before now, it's tomorrow (overnight)
+    if (blockEnd.getTime() <= now.getTime()) {
+      blockEnd.setDate(blockEnd.getDate() + 1)
+    }
+    blockEndRef.current = blockEnd.getTime() / 1000
+  }, [media])
+
+  // ---- reset when media changes ----
+  useEffect(() => {
+    const newId = media?.id ?? null
+    if (newId === mediaIdRef.current) return
+    mediaIdRef.current = newId
+
     setVideoError(null)
-    const video = videoRef.current
+    updatePlaybackState("loading")
+    setCurrentCommercialTitle("")
+    pausedForBreakRef.current = false
+
+    // Parse break timecodes
+    breakTimesRef.current = parseBreaks(media?.breaks)
+    nextBreakIndexRef.current = 0
+  }, [media?.id, media?.breaks])
+
+  // ---- load & play main video ----
+  useEffect(() => {
+    const video = mainVideoRef.current
     if (!video || !videoSrc) return
 
-    setIsVideoLoading(true)
     video.src = videoSrc
     video.load()
 
     const onCanPlay = () => {
-      setIsVideoLoading(false)
+      updatePlaybackState("playing-main")
       video.play().catch(() => {
-        // Autoplay may be blocked; user interaction will be needed
         setVideoError("Autoplay blocked -- click the video to play")
       })
     }
 
     const onError = () => {
-      setIsVideoLoading(false)
-      // Check what kind of path this is to give a helpful message
       if (
         videoSrc &&
         !videoSrc.startsWith("http") &&
@@ -79,10 +195,11 @@ export function VirtualTVDisplay({ channel, media, isStatic, onChannelUp, onChan
       } else {
         setVideoError("Unable to load video. The file may be missing or in an unsupported format.")
       }
+      updatePlaybackState("error")
     }
 
-    video.addEventListener("canplay", onCanPlay)
-    video.addEventListener("error", onError)
+    video.addEventListener("canplay", onCanPlay, { once: true })
+    video.addEventListener("error", onError, { once: true })
 
     return () => {
       video.removeEventListener("canplay", onCanPlay)
@@ -90,19 +207,162 @@ export function VirtualTVDisplay({ channel, media, isStatic, onChannelUp, onChan
     }
   }, [videoSrc])
 
-  // Handle click-to-play for autoplay-blocked scenarios
+  // ---- monitor timeupdate for break points ----
+  useEffect(() => {
+    const video = mainVideoRef.current
+    if (!video) return
+
+    const onTimeUpdate = () => {
+      if (pausedForBreakRef.current) return
+      const breaks = breakTimesRef.current
+      const idx = nextBreakIndexRef.current
+      if (idx >= breaks.length) return
+
+      const currentTime = video.currentTime
+      const breakTime = breaks[idx]
+
+      // Trigger within 0.5s tolerance
+      if (currentTime >= breakTime - 0.25) {
+        pausedForBreakRef.current = true
+        video.pause()
+        nextBreakIndexRef.current = idx + 1
+        playCommercial()
+      }
+    }
+
+    video.addEventListener("timeupdate", onTimeUpdate)
+    return () => video.removeEventListener("timeupdate", onTimeUpdate)
+  }, [commercials]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- handle main video ending -> pad with commercials ----
+  useEffect(() => {
+    const video = mainVideoRef.current
+    if (!video) return
+
+    const onEnded = () => {
+      const nowSec = Date.now() / 1000
+      const remaining = blockEndRef.current - nowSec
+      if (remaining > 5 && commercials.length > 0) {
+        // Pad remaining time with commercials
+        updatePlaybackState("padding-commercials")
+        playCommercial()
+      } else {
+        updatePlaybackState("ended")
+      }
+    }
+
+    video.addEventListener("ended", onEnded)
+    return () => video.removeEventListener("ended", onEnded)
+  }, [commercials]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- play a random commercial ----
+  const playCommercial = useCallback(() => {
+    const commercial = pickRandom(commercials)
+    if (!commercial) {
+      // No commercials available, resume main
+      resumeMain()
+      return
+    }
+
+    const src = getVideoSrc(commercial.filePath)
+    if (!src) {
+      resumeMain()
+      return
+    }
+
+    setCurrentCommercialTitle(commercial.title)
+    updatePlaybackState((prev) =>
+      prev === "padding-commercials" ? "padding-commercials" : "commercial-break",
+    )
+
+    const comVid = commercialVideoRef.current
+    if (!comVid) {
+      resumeMain()
+      return
+    }
+
+    comVid.src = src
+    comVid.load()
+
+    const onCanPlay = () => {
+      comVid.play().catch(() => {})
+    }
+
+    const onEnded = () => {
+      comVid.removeEventListener("canplay", onCanPlay)
+      comVid.removeEventListener("ended", onEnded)
+      comVid.removeEventListener("error", onErr)
+
+      // Check if the main video has ended and we need to keep padding
+      const mainVideo = mainVideoRef.current
+      const mainEnded = mainVideo ? mainVideo.ended : false
+      const nowSec = Date.now() / 1000
+      const remaining = blockEndRef.current - nowSec
+
+      if (mainEnded && remaining > 5 && commercials.length > 0) {
+        // Keep padding with more commercials
+        playCommercial()
+        return
+      }
+
+      // Resume main video (or end if main is done and block time is up)
+      resumeMain()
+    }
+
+    const onErr = () => {
+      comVid.removeEventListener("canplay", onCanPlay)
+      comVid.removeEventListener("ended", onEnded)
+      comVid.removeEventListener("error", onErr)
+      resumeMain()
+    }
+
+    comVid.addEventListener("canplay", onCanPlay, { once: true })
+    comVid.addEventListener("ended", onEnded, { once: true })
+    comVid.addEventListener("error", onErr, { once: true })
+  }, [commercials, getVideoSrc]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- resume main video after commercial ----
+  const resumeMain = useCallback(() => {
+    const video = mainVideoRef.current
+    if (!video) return
+
+    // If the main video already ended, check if we should keep padding
+    if (video.ended) {
+      const nowSec = Date.now() / 1000
+      const remaining = blockEndRef.current - nowSec
+      if (remaining > 5 && commercials.length > 0) {
+        updatePlaybackState("padding-commercials")
+        pausedForBreakRef.current = false
+        playCommercial()
+        return
+      }
+      updatePlaybackState("ended")
+      return
+    }
+
+    pausedForBreakRef.current = false
+    updatePlaybackState("playing-main")
+    setCurrentCommercialTitle("")
+    video.play().catch(() => {})
+  }, [commercials]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- click to play / resume ----
   const handleVideoClick = () => {
-    const video = videoRef.current
+    if (playbackState === "commercial-break" || playbackState === "padding-commercials") {
+      return // Don't interrupt commercials
+    }
+    const video = mainVideoRef.current
     if (!video) return
     if (video.paused) {
       video.play().catch(() => {})
+      updatePlaybackState("playing-main")
     } else {
       video.pause()
     }
     setVideoError(null)
   }
 
-  // Channel navigation buttons shared between states
+  // ---- channel nav ----
   const ChannelNav = () => (
     <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-10">
       <Button
@@ -124,7 +384,7 @@ export function VirtualTVDisplay({ channel, media, isStatic, onChannelUp, onChan
     </div>
   )
 
-  // ---- Static / No Signal ----
+  // ---- static / no signal ----
   if (isStatic || !channel) {
     return (
       <div className="w-full h-full relative">
@@ -144,23 +404,44 @@ export function VirtualTVDisplay({ channel, media, isStatic, onChannelUp, onChan
     )
   }
 
-  // ---- Media playing ----
+  // ---- determine what to show ----
+  const showMainVideo =
+    playbackState === "playing-main" || playbackState === "loading"
+  const showCommercialVideo =
+    playbackState === "commercial-break" || playbackState === "padding-commercials"
+
   return (
     <div className="w-full h-full relative">
       <div className="w-full h-full bg-black flex items-center justify-center">
         {media && videoSrc ? (
           <>
-            {/* Actual video player */}
+            {/* Main program video -- hidden during commercials */}
             <video
-              ref={videoRef}
-              className="w-full h-full object-contain cursor-pointer"
+              ref={mainVideoRef}
+              className={`w-full h-full object-contain cursor-pointer ${showCommercialVideo ? "hidden" : ""}`}
               onClick={handleVideoClick}
               autoPlay
               playsInline
             />
 
+            {/* Commercial video -- hidden when main is playing */}
+            <video
+              ref={commercialVideoRef}
+              className={`w-full h-full object-contain ${showCommercialVideo ? "" : "hidden"}`}
+              playsInline
+            />
+
+            {/* Commercial overlay label */}
+            {showCommercialVideo && currentCommercialTitle && (
+              <div className="absolute top-4 left-4 bg-black/70 text-white text-xs px-3 py-1.5 rounded z-10">
+                {playbackState === "padding-commercials"
+                  ? `Commercial: ${currentCommercialTitle}`
+                  : `Commercial Break: ${currentCommercialTitle}`}
+              </div>
+            )}
+
             {/* Loading indicator */}
-            {isVideoLoading && (
+            {playbackState === "loading" && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/80">
                 <div className="text-center text-white">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4" />
@@ -174,32 +455,40 @@ export function VirtualTVDisplay({ channel, media, isStatic, onChannelUp, onChan
               <div className="absolute inset-0 flex items-center justify-center bg-black/80">
                 <div className="text-center text-white max-w-md px-6">
                   <div className="text-2xl font-bold mb-2">{media.title}</div>
-                  {media.episodeTitle && <div className="text-lg mb-2 text-gray-300">{media.episodeTitle}</div>}
+                  {media.episodeTitle && (
+                    <div className="text-lg mb-2 text-gray-300">{media.episodeTitle}</div>
+                  )}
                   <div className="text-sm text-yellow-400 mt-4 leading-relaxed">{videoError}</div>
-                  <div className="text-xs text-gray-500 mt-3">
-                    File: {media.filePath}
-                  </div>
+                  <div className="text-xs text-gray-500 mt-3">File: {media.filePath}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Ended state */}
+            {playbackState === "ended" && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+                <div className="text-center text-white">
+                  <div className="text-xl font-bold mb-2">{media.title}</div>
+                  <div className="text-sm text-gray-400">Program has ended</div>
                 </div>
               </div>
             )}
           </>
         ) : media ? (
-          // Media is scheduled but has no file path
           <div className="text-center text-white">
             <div className="text-2xl font-bold mb-2">{media.title}</div>
-            {media.episodeTitle && <div className="text-lg mb-2 text-gray-300">{media.episodeTitle}</div>}
+            {media.episodeTitle && (
+              <div className="text-lg mb-2 text-gray-300">{media.episodeTitle}</div>
+            )}
             <div className="text-lg text-gray-300">
               {media.startTime} - {media.endTime}
             </div>
-            <div className="text-sm text-yellow-400 mt-4">
-              No file path assigned to this media item.
-            </div>
+            <div className="text-sm text-yellow-400 mt-4">No file path assigned to this media item.</div>
             <div className="text-sm text-gray-400 mt-2">
               Channel {channel.number} - {channel.name}
             </div>
           </div>
         ) : (
-          // Channel exists but nothing currently scheduled
           <div className="text-center text-white">
             <div className="text-xl">
               Channel {channel.number} - {channel.name}
