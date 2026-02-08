@@ -7,29 +7,30 @@ import type { CurrentMedia } from "@/hooks/use-virtual-tv"
 interface MediaInfoOverlayProps {
   media: CurrentMedia
   channel: Channel
+  duration: number // seconds before fade starts
   onFadeComplete: () => void
 }
 
-export function MediaInfoOverlay({ media, channel, onFadeComplete }: MediaInfoOverlayProps) {
+export function MediaInfoOverlay({ media, channel, duration, onFadeComplete }: MediaInfoOverlayProps) {
   const [isVisible, setIsVisible] = useState(true)
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(false)
-      setTimeout(onFadeComplete, 300) // Wait for fade animation
-    }, 4700) // Start fading at 4.7s to complete at 5s
+      setTimeout(onFadeComplete, 1500) // Wait for 1.5s fade animation
+    }, duration * 1000)
 
     return () => clearTimeout(timer)
-  }, [onFadeComplete])
+  }, [duration, onFadeComplete])
 
   const isMusicVideo = media.type === "filler" && media.category === "music video"
 
   return (
     <div
-      className={`absolute bottom-6 left-6 text-white transition-opacity duration-300 bg-black bg-opacity-50 p-4 rounded ${
+      className={`absolute bottom-6 left-6 text-white bg-black bg-opacity-50 p-4 rounded ${
         isVisible ? "opacity-100" : "opacity-0"
       }`}
-      style={{ bottom: "25px", left: "25px" }}
+      style={{ bottom: "25px", left: "25px", transition: "opacity 1.5s ease-out" }}
     >
       {/* Block/Marathon name if applicable */}
       {(media.blockName || media.marathonName) && (

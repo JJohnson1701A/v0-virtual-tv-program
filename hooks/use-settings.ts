@@ -96,6 +96,7 @@ export interface Settings {
   tvSeason: TVSeasonSettings
   channelTypeSettings: ChannelTypeSettings
   accentColor: AccentColor
+  infoDisplayDuration: 2 | 3 | 5
 }
 
 const defaultRatingAudioFiles: RatingAudioFiles = {
@@ -334,6 +335,7 @@ const defaultSettings: Settings = {
   tvSeason: getDefaultTVSeasonSettings(),
   channelTypeSettings: defaultChannelTypeSettings,
   accentColor: "blue",
+  infoDisplayDuration: 3,
 }
 
 // ---------------------------------------------------------------------------
@@ -366,6 +368,9 @@ export function useSettings() {
         }
         if (!parsedSettings.accentColor) {
           parsedSettings.accentColor = "blue"
+        }
+        if (!parsedSettings.infoDisplayDuration) {
+          parsedSettings.infoDisplayDuration = 3
         }
         setSettings({ ...defaultSettings, ...parsedSettings })
       }

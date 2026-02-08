@@ -99,6 +99,7 @@ export interface Settings {
   tvSeason: TVSeasonSettings
   channelTypeSettings: ChannelTypeSettings
   accentColor: AccentColor
+  infoDisplayDuration: 2 | 3 | 5
 }
 
 // Helper function to get the last Sunday of November
@@ -339,4 +340,5 @@ export const defaultSettings: Settings = {
   tvSeason: getDefaultTVSeasonSettings(),
   channelTypeSettings: getDefaultChannelTypeSettings(),
   accentColor: "blue",
+  infoDisplayDuration: 3,
 }

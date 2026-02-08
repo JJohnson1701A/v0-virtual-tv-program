@@ -46,23 +46,25 @@ export default function VirtualTVPage() {
     setCurrentChannelNumber(initialChannel)
   }, [channels, settings.rememberLastChannel, settings.lastViewedChannel, settings.defaultChannel])
 
-  // Show channel info when channel changes
+  // Show channel & media info only when the user tunes to a channel
   useEffect(() => {
+    const durationMs = (settings.infoDisplayDuration || 3) * 1000
+
     if (settings.showChannelInfo) {
       setShowChannelInfo(true)
-      const timer = setTimeout(() => setShowChannelInfo(false), 3000)
-      return () => clearTimeout(timer)
     }
-  }, [currentChannelNumber, settings.showChannelInfo])
-
-  // Show media info when media changes
-  useEffect(() => {
-    if (settings.showMediaInfo && currentMedia) {
+    if (settings.showMediaInfo) {
       setShowMediaInfo(true)
-      const timer = setTimeout(() => setShowMediaInfo(false), 5000)
-      return () => clearTimeout(timer)
     }
-  }, [currentMedia, settings.showMediaInfo])
+
+    const timer = setTimeout(() => {
+      setShowChannelInfo(false)
+      setShowMediaInfo(false)
+    }, durationMs + 1500) // duration + 1.5s fade
+
+    return () => clearTimeout(timer)
+    // Only trigger on channel change, NOT on media change
+  }, [currentChannelNumber, settings.showChannelInfo, settings.showMediaInfo, settings.infoDisplayDuration])
 
   // Update last viewed channel
   useEffect(() => {
@@ -173,6 +175,7 @@ export default function VirtualTVPage() {
           <ChannelInfoOverlay
             channelNumber={currentChannel.number}
             channelName={currentChannel.name}
+            duration={settings.infoDisplayDuration || 3}
             onFadeComplete={() => setShowChannelInfo(false)}
           />
         )}
@@ -182,6 +185,7 @@ export default function VirtualTVPage() {
           <MediaInfoOverlay
             media={currentMedia}
             channel={currentChannel}
+            duration={settings.infoDisplayDuration || 3}
             onFadeComplete={() => setShowMediaInfo(false)}
           />
         )}

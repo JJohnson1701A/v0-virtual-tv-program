@@ -553,6 +553,37 @@ export function SettingsPanel() {
               />
             </div>
 
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>On-Screen Info</CardTitle>
+            <CardDescription>Configure the channel and media info overlays shown when tuning to a channel</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="info-display-duration" className="text-base font-medium">
+                Time Displayed
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                How long channel and media info overlays are shown before fading out
+              </p>
+              <Select
+                value={settings.infoDisplayDuration.toString()}
+                onValueChange={(value) => updateSetting("infoDisplayDuration", Number(value) as 2 | 3 | 5)}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2">2 seconds</SelectItem>
+                  <SelectItem value="3">3 seconds</SelectItem>
+                  <SelectItem value="5">5 seconds</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <Separator />
 
             <div className="flex items-center justify-between">
@@ -561,7 +592,7 @@ export function SettingsPanel() {
                   Show Channel Info
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Display channel number and name overlay when switching channels (3 seconds)
+                  Display channel number and name overlay when tuning to a channel
                 </p>
               </div>
               <Switch
@@ -648,7 +679,7 @@ export function SettingsPanel() {
                   Show Media Info
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Display media title and timeslot overlay when viewing content (5 seconds)
+                  Display media title and timeslot overlay when tuning to a channel
                 </p>
               </div>
               <Switch
