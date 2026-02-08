@@ -30,6 +30,8 @@ export interface CurrentMedia {
   allowedCommercials?: string[]
   excludedCommercials?: string[]
   overlayPositionOverride?: string
+  /** Seconds elapsed since the schedule block started — used to seek into the media */
+  startOffset: number
 }
 
 export function useVirtualTV(channelNumber: number) {
@@ -132,6 +134,19 @@ export function useVirtualTV(channelNumber: number) {
     const mediaItem = allMedia.find((m) => m.id === currentScheduleItem.mediaId)
 
     if (mediaItem) {
+      // Compute how many seconds have elapsed since the block started
+      const parseTime12 = (t: string) => {
+        const [time, period] = t.split(" ")
+        const [h, m] = time.split(":").map(Number)
+        return ((h % 12) + (period === "PM" ? 12 : 0)) * 3600 + m * 60
+      }
+      const nowSec = hours * 3600 + minutes * 60 + new Date().getSeconds()
+      let startSec = parseTime12(currentScheduleItem.startTime)
+      let elapsed = nowSec - startSec
+      // handle overnight wraparound
+      if (elapsed < 0) elapsed += 24 * 3600
+      const startOffset = Math.max(0, elapsed)
+
       // Determine the file path to play
       let filePath: string | undefined
       let breaksStr: string | undefined
@@ -160,6 +175,7 @@ export function useVirtualTV(channelNumber: number) {
         allowedCommercials: mediaItem.allowedCommercials || [],
         excludedCommercials: mediaItem.excludedCommercials || [],
         overlayPositionOverride: mediaItem.overlayPositionOverride,
+        startOffset,
       }
 
       // Add episode info for TV shows
@@ -210,12 +226,21 @@ export function useVirtualTV(channelNumber: number) {
 
       if (block || marathon) {
         const item = block || marathon
+        const parseTime12 = (t: string) => {
+          const [time, period] = t.split(" ")
+          const [h, m] = time.split(":").map(Number)
+          return ((h % 12) + (period === "PM" ? 12 : 0)) * 3600 + m * 60
+        }
+        const nowSec2 = hours * 3600 + minutes * 60 + new Date().getSeconds()
+        let elapsed2 = nowSec2 - parseTime12(currentScheduleItem.startTime)
+        if (elapsed2 < 0) elapsed2 += 24 * 3600
         const media: CurrentMedia = {
           id: item!.id,
           title: item!.name,
           type: block ? "block" : "marathon",
           startTime: currentScheduleItem.startTime,
           endTime: currentScheduleItem.endTime,
+          startOffset: Math.max(0, elapsed2),
         }
 
         if (block) {

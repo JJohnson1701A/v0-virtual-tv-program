@@ -186,9 +186,19 @@ export function VirtualTVDisplay({
     pausedForBreakRef.current = false
 
     // Parse break timecodes
-    breakTimesRef.current = parseBreaks(media?.breaks)
-    nextBreakIndexRef.current = 0
-  }, [media?.id, media?.breaks])
+    const breaks = parseBreaks(media?.breaks)
+    breakTimesRef.current = breaks
+
+    // Skip any break points that have already passed given startOffset
+    const offset = media?.startOffset ?? 0
+    let startIdx = 0
+    if (offset > 0) {
+      while (startIdx < breaks.length && breaks[startIdx] <= offset) {
+        startIdx++
+      }
+    }
+    nextBreakIndexRef.current = startIdx
+  }, [media?.id, media?.breaks, media?.startOffset])
 
   // ---- load & play main video ----
   useEffect(() => {
@@ -199,6 +209,11 @@ export function VirtualTVDisplay({
     video.load()
 
     const onCanPlay = () => {
+      // Seek to the correct position based on how far into the schedule block we are
+      const offset = media?.startOffset ?? 0
+      if (offset > 0 && video.duration && offset < video.duration) {
+        video.currentTime = offset
+      }
       updatePlaybackState("playing-main")
       video.play().catch(() => {
         setVideoError("Autoplay blocked -- click the video to play")
@@ -228,7 +243,7 @@ export function VirtualTVDisplay({
       video.removeEventListener("canplay", onCanPlay)
       video.removeEventListener("error", onError)
     }
-  }, [videoSrc])
+  }, [videoSrc, media?.startOffset])
 
   // ---- monitor timeupdate for break points ----
   useEffect(() => {
