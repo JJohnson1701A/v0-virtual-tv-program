@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
+import { Slider } from "@/components/ui/slider"
 import { TriStateCheckbox, type TriState } from "@/components/ui/tri-state-checkbox"
 import { FileUpload } from "@/components/file-upload"
 import { TimeSelect } from "@/components/time-select"
@@ -165,6 +166,7 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
     logo: "",
     overlay: "",
     overlayPosition: "bottom-right" as OverlayPosition,
+    overlayOpacity: 75,
     defaultLanguage: "en",
     defaultSubtitleLanguage: "en",
     signOff: false,
@@ -194,6 +196,7 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
         logo: channel.logo || "",
         overlay: channel.overlay || "",
         overlayPosition: channel.overlayPosition || "bottom-right",
+        overlayOpacity: channel.overlayOpacity ?? 75,
         defaultLanguage: channel.defaultLanguage || "en",
         defaultSubtitleLanguage: channel.defaultSubtitleLanguage || "en",
         signOff: channel.signOff || false,
@@ -310,6 +313,7 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
       logo: formData.logo,
       overlay: formData.overlay,
       overlayPosition: formData.overlayPosition,
+      overlayOpacity: formData.overlayOpacity,
       defaultLanguage: formData.defaultLanguage,
       defaultSubtitleLanguage: formData.defaultSubtitleLanguage,
       signOff: formData.signOff,
@@ -401,23 +405,69 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
               />
 
               {formData.overlay && (
-                <div className="space-y-2">
-                  <Label htmlFor="overlay-position">Overlay Position</Label>
-                  <Select
-                    value={formData.overlayPosition}
-                    onValueChange={(value) => handleInputChange("overlayPosition", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {overlayPositions.map((position) => (
-                        <SelectItem key={position.value} value={position.value}>
-                          {position.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="overlay-position">Overlay Position</Label>
+                    <Select
+                      value={formData.overlayPosition}
+                      onValueChange={(value) => handleInputChange("overlayPosition", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {overlayPositions.map((position) => (
+                          <SelectItem key={position.value} value={position.value}>
+                            {position.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="overlay-opacity">Overlay Opacity</Label>
+                      <span className="text-sm text-muted-foreground">{formData.overlayOpacity}%</span>
+                    </div>
+                    <Slider
+                      id="overlay-opacity"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={[formData.overlayOpacity]}
+                      onValueChange={([value]) => handleInputChange("overlayOpacity", value)}
+                    />
+                    <p className="text-xs text-muted-foreground">0% = fully transparent, 100% = fully opaque</p>
+                  </div>
+
+                  {/* Overlay Preview */}
+                  <div className="space-y-2">
+                    <Label>Preview</Label>
+                    <div className="relative w-full h-40 rounded-md overflow-hidden border border-border bg-gray-900">
+                      <div
+                        className={`absolute ${
+                          formData.overlayPosition === "top-left"
+                            ? "top-3 left-3"
+                            : formData.overlayPosition === "top-right"
+                              ? "top-3 right-3"
+                              : formData.overlayPosition === "bottom-left"
+                                ? "bottom-3 left-3"
+                                : "bottom-3 right-3"
+                        }`}
+                      >
+                        <img
+                          src={formData.overlay}
+                          alt="Overlay preview"
+                          className="max-w-20 max-h-20 object-contain"
+                          style={{ opacity: formData.overlayOpacity / 100 }}
+                        />
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <span className="text-gray-500 text-sm">Video area</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
