@@ -520,26 +520,29 @@ export function VirtualTVDisplay({
           </div>
         )}
 
-        {/* Channel Overlay (if enabled) */}
-        {channel.overlay && (
-          <div
-            className={`absolute z-10 ${
-              channel.overlayPosition === "top-left"
-                ? "top-4 left-4"
-                : channel.overlayPosition === "top-right"
-                  ? "top-4 right-4"
-                  : channel.overlayPosition === "bottom-left"
-                    ? "bottom-4 left-4"
-                    : "bottom-4 right-4"
-            }`}
-          >
-            <img
-              src={channel.overlay || "/placeholder.svg"}
-              alt="Channel overlay"
-              className="max-w-32 max-h-32 opacity-75"
-            />
-          </div>
-        )}
+        {/* Channel Overlay (if enabled) — use TV show override if set */}
+        {channel.overlay && (() => {
+          const pos = media?.overlayPositionOverride || channel.overlayPosition || "bottom-right"
+          return (
+            <div
+              className={`absolute z-10 ${
+                pos === "top-left"
+                  ? "top-4 left-4"
+                  : pos === "top-right"
+                    ? "top-4 right-4"
+                    : pos === "bottom-left"
+                      ? "bottom-4 left-4"
+                      : "bottom-4 right-4"
+              }`}
+            >
+              <img
+                src={channel.overlay || "/placeholder.svg"}
+                alt="Channel overlay"
+                className="max-w-32 max-h-32 opacity-75"
+              />
+            </div>
+          )
+        })()}
       </div>
 
       <ChannelNav />

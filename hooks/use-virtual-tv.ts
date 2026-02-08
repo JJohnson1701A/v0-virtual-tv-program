@@ -29,6 +29,7 @@ export interface CurrentMedia {
   runtime?: number
   allowedCommercials?: string[]
   excludedCommercials?: string[]
+  overlayPositionOverride?: string
 }
 
 export function useVirtualTV(channelNumber: number) {
@@ -158,6 +159,7 @@ export function useVirtualTV(channelNumber: number) {
         runtime: mediaRuntime,
         allowedCommercials: mediaItem.allowedCommercials || [],
         excludedCommercials: mediaItem.excludedCommercials || [],
+        overlayPositionOverride: mediaItem.overlayPositionOverride,
       }
 
       // Add episode info for TV shows

@@ -1,3 +1,5 @@
+import type { OverlayPosition } from "./channel"
+
 export type MediaType = "movies" | "tvshows" | "musicvideos" | "filler" | "podcasts" | "livestreams"
 
 export type FillerType =
@@ -144,4 +146,6 @@ export interface MediaItem {
   // Allowable commercials for TV shows
   allowedCommercials?: CommercialCategory[]
   excludedCommercials?: CommercialCategory[]
+  // Channel overlay position override for TV shows
+  overlayPositionOverride?: OverlayPosition
 }

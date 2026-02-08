@@ -994,6 +994,30 @@ export function MediaEditDialog({ item, onSave, onCancel }: MediaEditDialogProps
                   </>
                 )}
 
+              {/* Channel Overlay Position Override - show for TV shows only */}
+              {isTVShow && (
+                <div className="grid gap-2">
+                  <Label htmlFor="overlayPositionOverride">Channel Overlay Position Override</Label>
+                  <Select
+                    value={editedItem.overlayPositionOverride || "none"}
+                    onValueChange={(value) =>
+                      handleChange("overlayPositionOverride", value === "none" ? undefined : value)
+                    }
+                  >
+                    <SelectTrigger id="overlayPositionOverride">
+                      <SelectValue placeholder="Use channel default" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Use Channel Default</SelectItem>
+                      <SelectItem value="top-left">Top Left</SelectItem>
+                      <SelectItem value="top-right">Top Right</SelectItem>
+                      <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                      <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Content Warning - show for all except music videos */}
               {!isMusicVideo && (
                 <ContentWarningSelector
