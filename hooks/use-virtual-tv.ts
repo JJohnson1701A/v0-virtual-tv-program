@@ -16,11 +16,13 @@ export interface CurrentMedia {
   category?: string
   artist?: string
   album?: string
+  filePath?: string
 }
 
 export function useVirtualTV(channelNumber: number) {
   const [currentMedia, setCurrentMedia] = useState<CurrentMedia | null>(null)
   const [isStatic, setIsStatic] = useState(true)
+  const [tick, setTick] = useState(0)
 
   // Get all media libraries
   const { mediaItems: movies } = useMediaLibrary("movies", "a-z")
@@ -30,6 +32,12 @@ export function useVirtualTV(channelNumber: number) {
   const { mediaItems: podcasts } = useMediaLibrary("podcasts", "a-z")
   const { mediaItems: livestreams } = useMediaLibrary("livestreams", "a-z")
   const { blocks, marathons } = useBlocksMarathons()
+
+  // Poll every 30 seconds so we pick up time-slot transitions
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 30_000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Find channel by number
   const findChannelByNumber = (number: number) => {
@@ -110,21 +118,36 @@ export function useVirtualTV(channelNumber: number) {
     const mediaItem = allMedia.find((m) => m.id === currentScheduleItem.mediaId)
 
     if (mediaItem) {
+      // Determine the file path to play
+      let filePath: string | undefined
+
+      if (mediaItem.type === "tvshows" && mediaItem.episodes && mediaItem.episodes.length > 0) {
+        // For TV shows, pick the first episode's file
+        const episode = mediaItem.episodes[0]
+        filePath = episode?.file
+      } else if (mediaItem.files && mediaItem.files.length > 0) {
+        // For movies, music videos, filler, podcasts, livestreams, use the first file
+        filePath = mediaItem.files[0]
+      }
+
       const media: CurrentMedia = {
         id: mediaItem.id,
         title: mediaItem.title,
         type: mediaItem.type,
         startTime: currentScheduleItem.startTime,
         endTime: currentScheduleItem.endTime,
-        category: mediaItem.category,
+        category: typeof mediaItem.category === "string" ? mediaItem.category : undefined,
+        filePath,
       }
 
       // Add episode info for TV shows
       if (mediaItem.type === "tvshows" && mediaItem.episodes) {
-        // For simplicity, just use the first episode
         const episode = mediaItem.episodes[0]
         if (episode) {
           media.episodeTitle = `S${episode.seasonNumber}E${episode.episodeNumber}: ${episode.title}`
+          if (episode.file) {
+            media.filePath = episode.file
+          }
         }
       }
 
@@ -137,9 +160,8 @@ export function useVirtualTV(channelNumber: number) {
 
       // Add music video info for filler
       if (mediaItem.type === "filler" && mediaItem.category === "music video") {
-        // These would normally be in the media item metadata
-        media.artist = "Sample Artist"
-        media.album = "Sample Album"
+        media.artist = mediaItem.bandName || "Unknown Artist"
+        media.album = mediaItem.albumName || "Unknown Album"
       }
 
       setCurrentMedia(media)
@@ -184,7 +206,7 @@ export function useVirtualTV(channelNumber: number) {
         setIsStatic(true)
       }
     }
-  }, [channelNumber, movies, tvshows, musicvideos, filler, podcasts, livestreams, blocks, marathons])
+  }, [channelNumber, movies, tvshows, musicvideos, filler, podcasts, livestreams, blocks, marathons, tick])
 
   return {
     currentMedia,
