@@ -33,8 +33,9 @@ export function SettingsPanel() {
     updateChannelTypeSettings,
     updateSelectedChannelType,
     updateCooldownSetting,
-    updateDaypartSetting,
-    getCurrentChannelTypeSettings,
+  updateDaypartSetting,
+  updateDaypartSettings,
+  getCurrentChannelTypeSettings,
     saveCurrentChannelTypeSettings,
     clearCurrentChannelTypeSettings,
   } = useSettings()
@@ -342,13 +343,11 @@ export function SettingsPanel() {
 
   const handleDaypartPFToggle = (daypart: string, value: string, newState: TriState) => {
     const ds = getDaypartSettings(daypart)
-    const dk = daypart as keyof typeof settings.channelTypeSettings.dayparts
     const newInclude = ds.programFormat.filter((v) => v !== value)
     const newExclude = ds.programFormatExclude.filter((v) => v !== value)
     if (newState === "checked") newInclude.push(value)
     else if (newState === "excluded") newExclude.push(value)
-    updateDaypartSetting(dk, "programFormat", newInclude)
-    updateDaypartSetting(dk, "programFormatExclude", newExclude)
+    updateDaypartSettings(daypart, { programFormat: newInclude, programFormatExclude: newExclude })
   }
 
   const getDaypartPFCategoryState = (daypart: string, categoryLabel: string): TriState => {
@@ -364,13 +363,11 @@ export function SettingsPanel() {
   const handleDaypartPFCategoryToggle = (daypart: string, categoryLabel: string, newState: TriState) => {
     const children = getOptionsForCategory(categoryLabel)
     const ds = getDaypartSettings(daypart)
-    const dk = daypart as keyof typeof settings.channelTypeSettings.dayparts
     let newInclude = ds.programFormat.filter((v) => !children.includes(v))
     let newExclude = ds.programFormatExclude.filter((v) => !children.includes(v))
     if (newState === "checked") newInclude = [...newInclude, ...children]
     else if (newState === "excluded") newExclude = [...newExclude, ...children]
-    updateDaypartSetting(dk, "programFormat", newInclude)
-    updateDaypartSetting(dk, "programFormatExclude", newExclude)
+    updateDaypartSettings(daypart, { programFormat: newInclude, programFormatExclude: newExclude })
   }
 
   return (

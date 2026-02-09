@@ -564,6 +564,29 @@ export function useSettings() {
     [settings, getCurrentChannelTypeSettings],
   )
 
+  const updateDaypartSettings = useCallback(
+    (daypart: string, fields: Partial<DaypartSettings>) => {
+      const channelType = settings.channelTypeSettings.selectedChannelType
+      const currentSettings = getCurrentChannelTypeSettings()
+      const currentDaypart = currentSettings.dayparts[daypart] || createDefaultDaypartSettings("", "")
+      const updatedDaypart = { ...currentDaypart, ...fields }
+      const updatedDayparts = { ...currentSettings.dayparts, [daypart]: updatedDaypart }
+      const updatedSingleSettings = { ...currentSettings, dayparts: updatedDayparts }
+      const updatedChannelTypes = {
+        ...settings.channelTypeSettings.channelTypes,
+        [channelType]: updatedSingleSettings,
+      }
+      saveSettings({
+        ...settings,
+        channelTypeSettings: {
+          ...settings.channelTypeSettings,
+          channelTypes: updatedChannelTypes,
+        },
+      })
+    },
+    [settings, getCurrentChannelTypeSettings],
+  )
+
   const saveCurrentChannelTypeSettings = useCallback(() => {
     const channelType = settings.channelTypeSettings.selectedChannelType
     const currentSettings = getCurrentChannelTypeSettings()
@@ -608,6 +631,7 @@ export function useSettings() {
     updateSelectedChannelType,
     updateCooldownSetting,
     updateDaypartSetting,
+    updateDaypartSettings,
     getCurrentChannelTypeSettings,
     saveCurrentChannelTypeSettings,
     clearCurrentChannelTypeSettings,
