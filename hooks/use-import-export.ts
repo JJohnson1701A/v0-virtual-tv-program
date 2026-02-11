@@ -6,6 +6,14 @@ import type { Settings } from "@/hooks/use-settings"
 import type { Block, Marathon } from "@/types/blocks-marathons"
 import type { ScheduleItem } from "@/types/schedule"
 
+interface ChannelExportData {
+  version: string
+  exportDate: string
+  type: "channels"
+  channels: Channel[]
+  assets: Record<string, string>
+}
+
 interface VirtualTVExportData {
   version: string
   exportDate: string
@@ -221,8 +229,79 @@ export function useImportExport() {
     }
   }
 
+  const exportChannels = async (): Promise<ChannelExportData> => {
+    const channels: Channel[] = JSON.parse(localStorage.getItem("virtualTvChannels") || "[]")
+
+    // Collect all file URLs from channel data (logos, overlays, signoff videos)
+    const fileUrls = collectFileUrls(channels)
+
+    const assets: Record<string, string> = {}
+    const urlToKeyMap: Record<string, string> = {}
+
+    for (let i = 0; i < fileUrls.length; i++) {
+      const url = fileUrls[i]
+      const assetKey = `ch_asset_${i}`
+      const base64 = await fileToBase64(url)
+      assets[assetKey] = base64
+      urlToKeyMap[url] = assetKey
+    }
+
+    const processedChannels = replaceUrlsWithKeys(channels, urlToKeyMap)
+
+    return {
+      version: "1.0.0",
+      exportDate: new Date().toISOString(),
+      type: "channels",
+      channels: processedChannels,
+      assets,
+    }
+  }
+
+  const importChannels = async (file: File): Promise<{ count: number }> => {
+    const text = await file.text()
+    const importedData: ChannelExportData = JSON.parse(text)
+
+    if (!importedData.version || !importedData.exportDate || importedData.type !== "channels") {
+      throw new Error("Invalid channel export file. Please select a valid channel export (.json) file.")
+    }
+
+    if (!Array.isArray(importedData.channels) || importedData.channels.length === 0) {
+      throw new Error("The file contains no channels to import.")
+    }
+
+    // Restore blob URLs from embedded assets
+    const restoredChannels: Channel[] = replaceKeysWithUrls(
+      importedData.channels,
+      importedData.assets || {},
+    )
+
+    // Merge with existing channels — match by channel number, otherwise append
+    const existingChannels: Channel[] = JSON.parse(localStorage.getItem("virtualTvChannels") || "[]")
+    const existingByNumber = new Map(existingChannels.map((c) => [c.number, c]))
+
+    let importedCount = 0
+    for (const incoming of restoredChannels) {
+      const existing = existingByNumber.get(incoming.number)
+      if (existing) {
+        // Overwrite the existing channel, keeping the original id
+        existingByNumber.set(incoming.number, { ...incoming, id: existing.id })
+      } else {
+        // Assign a fresh id for new channels
+        existingByNumber.set(incoming.number, { ...incoming, id: `channel-${Date.now()}-${importedCount}` })
+      }
+      importedCount++
+    }
+
+    const mergedChannels = Array.from(existingByNumber.values()).sort((a, b) => a.number - b.number)
+    localStorage.setItem("virtualTvChannels", JSON.stringify(mergedChannels))
+
+    return { count: importedCount }
+  }
+
   return {
     exportData,
     importData,
+    exportChannels,
+    importChannels,
   }
 }

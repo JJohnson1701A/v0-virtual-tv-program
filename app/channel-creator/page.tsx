@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Navigation } from "@/components/navigation"
 import { ChannelGrid } from "@/components/channel-grid"
 import { CreateChannelDialog } from "@/components/create-channel-dialog"
@@ -8,14 +8,19 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { useChannels } from "@/hooks/use-channels"
-import { PlusIcon } from "lucide-react"
+import { useImportExport } from "@/hooks/use-import-export"
+import { PlusIcon, DownloadIcon, UploadIcon } from "lucide-react"
 import type { Channel } from "@/types/channel"
 
 export default function ChannelCreatorPage() {
   const { channels, addChannel, updateChannel, deleteChannel, isLoading } = useChannels()
+  const { exportChannels, importChannels } = useImportExport()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editChannel, setEditChannel] = useState<Channel | null>(null)
   const [zoomLevel, setZoomLevel] = useState([100])
+  const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const importFileRef = useRef<HTMLInputElement>(null)
 
   const handleCreateChannel = () => {
     setEditChannel(null)
@@ -42,6 +47,47 @@ export default function ChannelCreatorPage() {
     setEditChannel(null)
   }
 
+  const handleExportChannels = async () => {
+    setIsExporting(true)
+    try {
+      const data = await exportChannels()
+      const json = JSON.stringify(data, null, 2)
+      const blob = new Blob([json], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `channels-export-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Export failed:", error)
+      alert("Failed to export channels. Please try again.")
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleImportChannels = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsImporting(true)
+    try {
+      const result = await importChannels(file)
+      alert(`Successfully imported ${result.count} channel(s). The page will reload.`)
+      window.location.reload()
+    } catch (error: any) {
+      console.error("Import failed:", error)
+      alert(error.message || "Failed to import channels. Please check the file format.")
+    } finally {
+      setIsImporting(false)
+      // Reset file input so the same file can be re-selected
+      if (importFileRef.current) importFileRef.current.value = ""
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen">
       <Navigation activeTab="Channel Creator" />
@@ -55,6 +101,36 @@ export default function ChannelCreatorPage() {
           </Button>
 
           <div className="flex items-center gap-4">
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleImportChannels}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => importFileRef.current?.click()}
+              disabled={isImporting}
+              className="flex items-center gap-2"
+            >
+              <UploadIcon className="h-4 w-4" />
+              {isImporting ? "Importing..." : "Import"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportChannels}
+              disabled={isExporting || channels.length === 0}
+              className="flex items-center gap-2"
+            >
+              <DownloadIcon className="h-4 w-4" />
+              {isExporting ? "Exporting..." : "Export"}
+            </Button>
+
+            <div className="w-px h-6 bg-border" />
+
             <Label htmlFor="zoom-slider" className="text-sm font-medium">
               Zoom
             </Label>
