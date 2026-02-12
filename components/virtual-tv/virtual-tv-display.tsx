@@ -538,7 +538,8 @@ export function VirtualTVDisplay({
         {/* Channel Overlay (if enabled) — use TV show override if set */}
         {channel.overlay && (() => {
           const pos = media?.overlayPositionOverride || channel.overlayPosition || "bottom-right"
-          const opacity = (channel.overlayOpacity ?? 75) / 100
+          const opacity = (channel.overlayOpacity ?? 40) / 100
+          const size = channel.overlaySize ?? 150
           return (
             <div
               className={`absolute z-10 ${
@@ -554,8 +555,8 @@ export function VirtualTVDisplay({
               <img
                 src={channel.overlay || "/placeholder.svg"}
                 alt="Channel overlay"
-                className="max-w-32 max-h-32"
-                style={{ opacity }}
+                className="object-contain"
+                style={{ opacity, width: `${size}px`, height: `${size}px` }}
               />
             </div>
           )

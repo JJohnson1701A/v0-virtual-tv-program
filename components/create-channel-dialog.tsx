@@ -143,7 +143,8 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
     logo: "",
     overlay: "",
     overlayPosition: "bottom-right" as OverlayPosition,
-    overlayOpacity: 75,
+    overlayOpacity: 40,
+    overlaySize: 150,
     defaultLanguage: "en",
     defaultSubtitleLanguage: "en",
     signOff: false,
@@ -175,7 +176,8 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
         logo: channel.logo || "",
         overlay: channel.overlay || "",
         overlayPosition: channel.overlayPosition || "bottom-right",
-        overlayOpacity: channel.overlayOpacity ?? 75,
+        overlayOpacity: channel.overlayOpacity ?? 40,
+        overlaySize: channel.overlaySize ?? 150,
         defaultLanguage: channel.defaultLanguage || "en",
         defaultSubtitleLanguage: channel.defaultSubtitleLanguage || "en",
         signOff: channel.signOff || false,
@@ -319,6 +321,7 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
       overlay: formData.overlay,
       overlayPosition: formData.overlayPosition,
       overlayOpacity: formData.overlayOpacity,
+      overlaySize: formData.overlaySize,
       defaultLanguage: formData.defaultLanguage,
       defaultSubtitleLanguage: formData.defaultSubtitleLanguage,
       signOff: formData.signOff,
@@ -448,6 +451,39 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
                     <p className="text-xs text-muted-foreground">0% = fully transparent, 100% = fully opaque</p>
                   </div>
 
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="overlay-size">Overlay Size</Label>
+                      <span className="text-sm text-muted-foreground">{formData.overlaySize}px</span>
+                    </div>
+                    <Slider
+                      id="overlay-size"
+                      min={60}
+                      max={250}
+                      step={1}
+                      value={[formData.overlaySize]}
+                      onValueChange={([raw]) => {
+                        const stickyPoints = [80, 150, 200]
+                        const snapRange = 6
+                        let value = raw
+                        for (const point of stickyPoints) {
+                          if (Math.abs(raw - point) <= snapRange) {
+                            value = point
+                            break
+                          }
+                        }
+                        handleInputChange("overlaySize", value)
+                      }}
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground px-0.5">
+                      <span>60px</span>
+                      <span className="ml-2">80px</span>
+                      <span>150px</span>
+                      <span>200px</span>
+                      <span>250px</span>
+                    </div>
+                  </div>
+
                   {/* Overlay Preview */}
                   <div className="space-y-2">
                     <Label>Preview</Label>
@@ -466,8 +502,12 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
                         <img
                           src={formData.overlay}
                           alt="Overlay preview"
-                          className="max-w-20 max-h-20 object-contain"
-                          style={{ opacity: formData.overlayOpacity / 100 }}
+                          className="object-contain"
+                          style={{
+                            opacity: formData.overlayOpacity / 100,
+                            width: `${Math.min(formData.overlaySize, 120) * (120 / 150)}px`,
+                            height: `${Math.min(formData.overlaySize, 120) * (120 / 150)}px`,
+                          }}
                         />
                       </div>
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

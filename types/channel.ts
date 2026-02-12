@@ -20,7 +20,8 @@ export interface Channel {
   logo?: string
   overlay?: string
   overlayPosition?: OverlayPosition
-  overlayOpacity?: number // 0–100, default 75
+  overlayOpacity?: number // 0–100, default 40
+  overlaySize?: number // 60–250 pixels, default 150
   defaultLanguage: string
   defaultSubtitleLanguage: string
   signOff: boolean
