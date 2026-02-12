@@ -487,7 +487,7 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
                   {/* Overlay Preview */}
                   <div className="space-y-2">
                     <Label>Preview</Label>
-                    <div className="relative w-full h-40 rounded-md overflow-hidden border border-border bg-gray-900">
+                    <div className="relative w-full h-40 rounded-md overflow-hidden border border-border bg-gray-400">
                       <div
                         className={`absolute ${
                           formData.overlayPosition === "top-left"
@@ -511,7 +511,7 @@ export function CreateChannelDialog({ channel, onSave, onCancel }: CreateChannel
                         />
                       </div>
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <span className="text-gray-500 text-sm">Video area</span>
+                        <span className="text-gray-600 text-sm">Video area</span>
                       </div>
                     </div>
                   </div>
