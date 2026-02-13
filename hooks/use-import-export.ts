@@ -109,16 +109,21 @@ export function useImportExport() {
   }
 
   // Replace asset keys back to URLs
-  const replaceKeysWithUrls = (data: any, assets: Record<string, string>): any => {
+  // keepDataUrls: if true, keeps data: URLs as-is instead of converting to blob URLs
+  const replaceKeysWithUrls = (data: any, assets: Record<string, string>, keepDataUrls = false): any => {
     if (typeof data === "string" && data.startsWith("__ASSET__")) {
       const assetKey = data.replace("__ASSET__", "")
-      return assets[assetKey] ? base64ToBlob(assets[assetKey]) : data
+      if (!assets[assetKey]) return data
+      if (keepDataUrls && assets[assetKey].startsWith("data:")) {
+        return assets[assetKey]
+      }
+      return base64ToBlob(assets[assetKey])
     } else if (Array.isArray(data)) {
-      return data.map((item) => replaceKeysWithUrls(item, assets))
+      return data.map((item) => replaceKeysWithUrls(item, assets, keepDataUrls))
     } else if (typeof data === "object" && data !== null) {
       const result: any = {}
       for (const [key, value] of Object.entries(data)) {
-        result[key] = replaceKeysWithUrls(value, assets)
+        result[key] = replaceKeysWithUrls(value, assets, keepDataUrls)
       }
       return result
     }
@@ -269,10 +274,11 @@ export function useImportExport() {
       throw new Error("The file contains no channels to import.")
     }
 
-    // Restore blob URLs from embedded assets
+    // Restore assets as persistent data URLs (not ephemeral blob URLs)
     const restoredChannels: Channel[] = replaceKeysWithUrls(
       importedData.channels,
       importedData.assets || {},
+      true,
     )
 
     // Merge with existing channels — match by channel number, otherwise append

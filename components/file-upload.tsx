@@ -18,10 +18,13 @@ export function FileUpload({ value, onChange, accept, placeholder }: FileUploadP
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = (file: File) => {
-    // In a real implementation, this would upload the file to a server
-    // For now, we'll create a mock URL
-    const mockUrl = URL.createObjectURL(file)
-    onChange(mockUrl)
+    // Convert file to a persistent data URL so it survives page reloads
+    // and can be exported/imported reliably
+    const reader = new FileReader()
+    reader.onload = () => {
+      onChange(reader.result as string)
+    }
+    reader.readAsDataURL(file)
   }
 
   const handleDrop = (e: React.DragEvent) => {
