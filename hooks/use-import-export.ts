@@ -255,8 +255,14 @@ export function useImportExport() {
   const exportChannels = async (): Promise<Blob> => {
     const channels: Channel[] = JSON.parse(localStorage.getItem("virtualTvChannels") || "[]")
 
+    // Debug: log what images channels have
+    channels.forEach((ch, i) => {
+      console.log(`[v0] Export ch[${i}] "${ch.name}" logo=${ch.logo ? ch.logo.substring(0, 60) + "..." : "none"} overlay=${ch.overlay ? ch.overlay.substring(0, 60) + "..." : "none"}`)
+    })
+
     // Collect all data-URL file references
     const fileUrls = collectFileUrls(channels)
+    console.log(`[v0] Export: collected ${fileUrls.length} file URLs`, fileUrls.map(u => u.substring(0, 60)))
 
     const zip = new JSZip()
     const assetsFolder = zip.folder("assets")!
@@ -289,8 +295,15 @@ export function useImportExport() {
       }
     }
 
+    console.log(`[v0] Export: urlToFilenameMap has ${Object.keys(urlToFilenameMap).length} entries`, urlToFilenameMap)
+
     // Replace data URLs in channel objects with relative filenames
     const processedChannels = replaceUrlsWithKeys(channels, urlToFilenameMap)
+
+    // Debug: verify replacement happened
+    processedChannels.forEach((ch: any, i: number) => {
+      console.log(`[v0] Export processed ch[${i}] logo=${typeof ch.logo === "string" ? ch.logo.substring(0, 80) : "none"} overlay=${typeof ch.overlay === "string" ? ch.overlay.substring(0, 80) : "none"}`)
+    })
 
     const manifest: ChannelExportJson = {
       version: "2.0.0",
@@ -327,21 +340,49 @@ export function useImportExport() {
     // Build a map of asset filenames -> data URLs by reading each file from the ZIP
     const assetDataUrls: Record<string, string> = {}
 
+    // Infer MIME type from file extension since JSZip may lose it
+    const extToMime: Record<string, string> = {
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      gif: "image/gif",
+      svg: "image/svg+xml",
+      webp: "image/webp",
+      mp4: "video/mp4",
+      webm: "video/webm",
+    }
+
     const assetFiles = Object.keys(zip.files).filter((name) => name.startsWith("assets/") && !zip.files[name].dir)
+    console.log(`[v0] Import: found ${assetFiles.length} asset files in ZIP:`, assetFiles)
     for (const assetPath of assetFiles) {
       const assetFile = zip.file(assetPath)
       if (!assetFile) continue
-      const blob = await assetFile.async("blob")
+      const uint8 = await assetFile.async("uint8array")
+
+      // Determine correct MIME type from the file extension
+      const ext = assetPath.split(".").pop()?.toLowerCase() || ""
+      const mime = extToMime[ext] || "application/octet-stream"
+
+      // Build a proper Blob with the correct MIME type
+      const typedBlob = new Blob([uint8], { type: mime })
+
       // Convert to a persistent data URL for localStorage
       const dataUrl: string = await new Promise((resolve, reject) => {
         const reader = new FileReader()
         reader.onload = () => resolve(reader.result as string)
         reader.onerror = reject
-        reader.readAsDataURL(blob)
+        reader.readAsDataURL(typedBlob)
       })
       // The key is the relative path used in replaceUrlsWithKeys (e.g. "assets/asset_0.png")
       assetDataUrls[assetPath] = dataUrl
+      console.log(`[v0] Import: restored ${assetPath} -> ${dataUrl.substring(0, 60)}...`)
     }
+
+    console.log(`[v0] Import: assetDataUrls keys:`, Object.keys(assetDataUrls))
+    console.log(`[v0] Import: manifest channels before restore:`)
+    manifest.channels.forEach((ch: any, i: number) => {
+      console.log(`[v0]   ch[${i}] logo=${typeof ch.logo === "string" ? ch.logo.substring(0, 80) : "none"} overlay=${typeof ch.overlay === "string" ? ch.overlay.substring(0, 80) : "none"}`)
+    })
 
     // Restore file references: replace __ASSET__assets/asset_0.png -> data URL
     const restoredChannels: Channel[] = replaceKeysWithUrls(
@@ -349,6 +390,11 @@ export function useImportExport() {
       assetDataUrls,
       true,
     )
+
+    console.log(`[v0] Import: restored channels:`)
+    restoredChannels.forEach((ch: any, i: number) => {
+      console.log(`[v0]   ch[${i}] logo=${typeof ch.logo === "string" ? ch.logo.substring(0, 80) : "none"} overlay=${typeof ch.overlay === "string" ? ch.overlay.substring(0, 80) : "none"}`)
+    })
 
     // Merge with existing channels — match by channel number, otherwise append
     const existingChannels: Channel[] = JSON.parse(localStorage.getItem("virtualTvChannels") || "[]")
