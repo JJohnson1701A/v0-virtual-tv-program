@@ -50,13 +50,11 @@ export default function ChannelCreatorPage() {
   const handleExportChannels = async () => {
     setIsExporting(true)
     try {
-      const data = await exportChannels()
-      const json = JSON.stringify(data, null, 2)
-      const blob = new Blob([json], { type: "application/json" })
+      const blob = await exportChannels()
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `channels-export-${new Date().toISOString().slice(0, 10)}.json`
+      a.download = `channels-export-${new Date().toISOString().slice(0, 10)}.zip`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -104,7 +102,7 @@ export default function ChannelCreatorPage() {
             <input
               ref={importFileRef}
               type="file"
-              accept=".json"
+              accept=".zip"
               className="hidden"
               onChange={handleImportChannels}
             />

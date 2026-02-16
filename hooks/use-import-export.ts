@@ -1,17 +1,17 @@
 "use client"
 
+import JSZip from "jszip"
 import type { MediaItem } from "@/types/media"
 import type { Channel } from "@/types/channel"
 import type { Settings } from "@/hooks/use-settings"
 import type { Block, Marathon } from "@/types/blocks-marathons"
 import type { ScheduleItem } from "@/types/schedule"
 
-interface ChannelExportData {
+interface ChannelExportJson {
   version: string
   exportDate: string
   type: "channels"
   channels: Channel[]
-  assets: Record<string, string>
 }
 
 interface VirtualTVExportData {
@@ -234,50 +234,119 @@ export function useImportExport() {
     }
   }
 
-  const exportChannels = async (): Promise<ChannelExportData> => {
+  // Extract a data URL into a Blob with its file extension
+  const dataUrlToFileInfo = (dataUrl: string): { blob: Blob; ext: string } => {
+    const mimeMatch = dataUrl.match(/^data:(.*?);/)
+    const mime = mimeMatch?.[1] || "application/octet-stream"
+    const extMap: Record<string, string> = {
+      "image/png": "png",
+      "image/jpeg": "jpg",
+      "image/gif": "gif",
+      "image/svg+xml": "svg",
+      "image/webp": "webp",
+      "video/mp4": "mp4",
+      "video/webm": "webm",
+    }
+    const ext = extMap[mime] || "bin"
+    const blob = dataURLtoBlob(dataUrl)
+    return { blob, ext }
+  }
+
+  const exportChannels = async (): Promise<Blob> => {
     const channels: Channel[] = JSON.parse(localStorage.getItem("virtualTvChannels") || "[]")
 
-    // Collect all file URLs from channel data (logos, overlays, signoff videos)
+    // Collect all data-URL file references
     const fileUrls = collectFileUrls(channels)
 
-    const assets: Record<string, string> = {}
-    const urlToKeyMap: Record<string, string> = {}
+    const zip = new JSZip()
+    const assetsFolder = zip.folder("assets")!
+    const urlToFilenameMap: Record<string, string> = {}
 
+    // Write each image/video as an individual file in the ZIP
     for (let i = 0; i < fileUrls.length; i++) {
       const url = fileUrls[i]
-      const assetKey = `ch_asset_${i}`
-      const base64 = await fileToBase64(url)
-      assets[assetKey] = base64
-      urlToKeyMap[url] = assetKey
+      try {
+        let blob: Blob
+        let ext: string
+
+        if (url.startsWith("data:")) {
+          const info = dataUrlToFileInfo(url)
+          blob = info.blob
+          ext = info.ext
+        } else if (url.startsWith("blob:")) {
+          const resp = await fetch(url)
+          blob = await resp.blob()
+          ext = blob.type.split("/")[1] || "bin"
+        } else {
+          continue
+        }
+
+        const filename = `asset_${i}.${ext}`
+        assetsFolder.file(filename, blob)
+        urlToFilenameMap[url] = `assets/${filename}`
+      } catch (err) {
+        console.warn("Failed to export asset:", url, err)
+      }
     }
 
-    const processedChannels = replaceUrlsWithKeys(channels, urlToKeyMap)
+    // Replace data URLs in channel objects with relative filenames
+    const processedChannels = replaceUrlsWithKeys(channels, urlToFilenameMap)
 
-    return {
-      version: "1.0.0",
+    const manifest: ChannelExportJson = {
+      version: "2.0.0",
       exportDate: new Date().toISOString(),
       type: "channels",
       channels: processedChannels,
-      assets,
     }
+
+    zip.file("channels.json", JSON.stringify(manifest, null, 2))
+
+    return zip.generateAsync({ type: "blob" })
   }
 
   const importChannels = async (file: File): Promise<{ count: number }> => {
-    const text = await file.text()
-    const importedData: ChannelExportData = JSON.parse(text)
+    const zip = await JSZip.loadAsync(file)
 
-    if (!importedData.version || !importedData.exportDate || importedData.type !== "channels") {
-      throw new Error("Invalid channel export file. Please select a valid channel export (.json) file.")
+    // Read the manifest JSON
+    const manifestFile = zip.file("channels.json")
+    if (!manifestFile) {
+      throw new Error("Invalid channel export file. Missing channels.json in the archive.")
     }
 
-    if (!Array.isArray(importedData.channels) || importedData.channels.length === 0) {
+    const manifestText = await manifestFile.async("string")
+    const manifest: ChannelExportJson = JSON.parse(manifestText)
+
+    if (!manifest.version || !manifest.exportDate || manifest.type !== "channels") {
+      throw new Error("Invalid channel export file. Please select a valid channel export (.zip) file.")
+    }
+
+    if (!Array.isArray(manifest.channels) || manifest.channels.length === 0) {
       throw new Error("The file contains no channels to import.")
     }
 
-    // Restore assets as persistent data URLs (not ephemeral blob URLs)
+    // Build a map of asset filenames -> data URLs by reading each file from the ZIP
+    const assetDataUrls: Record<string, string> = {}
+
+    const assetFiles = Object.keys(zip.files).filter((name) => name.startsWith("assets/") && !zip.files[name].dir)
+    for (const assetPath of assetFiles) {
+      const assetFile = zip.file(assetPath)
+      if (!assetFile) continue
+      const blob = await assetFile.async("blob")
+      // Convert to a persistent data URL for localStorage
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+      // The key is the relative path used in replaceUrlsWithKeys (e.g. "assets/asset_0.png")
+      assetDataUrls[assetPath] = dataUrl
+    }
+
+    // Restore file references: replace __ASSET__assets/asset_0.png -> data URL
     const restoredChannels: Channel[] = replaceKeysWithUrls(
-      importedData.channels,
-      importedData.assets || {},
+      manifest.channels,
+      assetDataUrls,
       true,
     )
 
@@ -289,10 +358,8 @@ export function useImportExport() {
     for (const incoming of restoredChannels) {
       const existing = existingByNumber.get(incoming.number)
       if (existing) {
-        // Overwrite the existing channel, keeping the original id
         existingByNumber.set(incoming.number, { ...incoming, id: existing.id })
       } else {
-        // Assign a fresh id for new channels
         existingByNumber.set(incoming.number, { ...incoming, id: `channel-${Date.now()}-${importedCount}` })
       }
       importedCount++
