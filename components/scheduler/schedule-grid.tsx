@@ -100,9 +100,16 @@ export function ScheduleGrid({
     return scheduleItems.find((item) => item.dayOfWeek === dayIndex && item.startTime === timeSlot) || null
   }
 
-  // Calculate how many slots an item spans based on runtime
+  // Calculate how many half-hour slots an item spans based on runtime.
+  // TV-style: shows over 30 minutes get an extra slot for filler/commercials.
+  //   0-30 min  = 1 slot
+  //  31-60 min  = 2 slots
+  //  61-90 min  = 3 slots
+  //  91-120 min = 4 slots   etc.
   const getItemSpan = (runtime: number): number => {
-    return Math.ceil(runtime / 30)
+    if (runtime <= 30) return 1
+    // For longer content, round up to next 30 then add one filler slot
+    return Math.ceil(runtime / 30) + (runtime % 30 === 0 ? 1 : 0)
   }
 
   // Get color for schedule item
