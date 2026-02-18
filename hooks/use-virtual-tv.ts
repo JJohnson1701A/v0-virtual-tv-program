@@ -30,6 +30,7 @@ export interface CurrentMedia {
   allowedCommercials?: string[]
   excludedCommercials?: string[]
   overlayPositionOverride?: string
+  fillStyle?: "intermixed" | "at-end" | "at-beginning" | "none" | "static"
   /** Seconds elapsed since the schedule block started — used to seek into the media */
   startOffset: number
 }
@@ -175,6 +176,7 @@ export function useVirtualTV(channelNumber: number) {
         allowedCommercials: mediaItem.allowedCommercials || [],
         excludedCommercials: mediaItem.excludedCommercials || [],
         overlayPositionOverride: mediaItem.overlayPositionOverride,
+        fillStyle: currentScheduleItem.fillStyle || "intermixed",
         startOffset,
       }
 
