@@ -214,6 +214,7 @@ export function VirtualTVDisplay({
       if (offset > 0 && video.duration && offset < video.duration) {
         video.currentTime = offset
       }
+      video.muted = false
       updatePlaybackState("playing-main")
       video.play().catch(() => {
         setVideoError("Autoplay blocked -- click the video to play")
@@ -263,6 +264,7 @@ export function VirtualTVDisplay({
       if (currentTime >= breakTime - 0.25) {
         pausedForBreakRef.current = true
         video.pause()
+        video.muted = true
         nextBreakIndexRef.current = idx + 1
         playCommercial()
       }
@@ -281,7 +283,8 @@ export function VirtualTVDisplay({
       const nowSec = Date.now() / 1000
       const remaining = blockEndRef.current - nowSec
       if (remaining > 5 && commercials.length > 0) {
-        // Pad remaining time with commercials
+        // Mute main video and pad remaining time with commercials
+        video.muted = true
         updatePlaybackState("padding-commercials")
         playCommercial()
       } else {
@@ -381,6 +384,7 @@ export function VirtualTVDisplay({
     pausedForBreakRef.current = false
     updatePlaybackState("playing-main")
     setCurrentCommercialTitle("")
+    video.muted = false
     video.play().catch(() => {})
   }, [commercials]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -453,12 +457,11 @@ export function VirtualTVDisplay({
       <div className="w-full h-full bg-black flex items-center justify-center">
         {media && videoSrc ? (
           <>
-            {/* Main program video -- hidden during commercials */}
+            {/* Main program video -- hidden & muted during commercials */}
             <video
               ref={mainVideoRef}
               className={`w-full h-full object-contain cursor-pointer ${showCommercialVideo ? "hidden" : ""}`}
               onClick={handleVideoClick}
-              autoPlay
               playsInline
             />
 
