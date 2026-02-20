@@ -44,17 +44,6 @@ function parseScheduleTime(timeStr: string): { hours24: number; minutes: number 
   return { hours24, minutes: m }
 }
 
-/** Get total seconds in a schedule block */
-function getBlockDurationSeconds(startTime: string, endTime: string): number {
-  const start = parseScheduleTime(startTime)
-  const end = parseScheduleTime(endTime)
-  let startSec = start.hours24 * 3600 + start.minutes * 60
-  let endSec = end.hours24 * 3600 + end.minutes * 60
-  // handle overnight
-  if (endSec <= startSec) endSec += 24 * 3600
-  return endSec - startSec
-}
-
 /** Pick a random item from an array */
 function pickRandom<T>(arr: T[]): T | undefined {
   if (arr.length === 0) return undefined
@@ -63,14 +52,16 @@ function pickRandom<T>(arr: T[]): T | undefined {
 
 // ---- types ----
 
-type PlaybackState =
-  | "loading"
-  | "playing-main"
-  | "commercial-break"
-  | "padding-commercials"
-  | "ended"
-  | "error"
-  | "no-file"
+type PlaybackPhase =
+  | "idle"            // nothing loaded yet
+  | "loading"         // main video loading
+  | "pre-filler"      // playing filler BEFORE the main media ("at-beginning")
+  | "playing-main"    // main video playing
+  | "commercial-break" // paused main, playing filler at a break point
+  | "post-filler"     // main ended, padding to half-hour with filler
+  | "ended"           // block done
+  | "error"           // video error
+  | "no-file"         // no file assigned
 
 // ---- component ----
 
@@ -94,310 +85,370 @@ export function VirtualTVDisplay({
   const mainVideoRef = useRef<HTMLVideoElement>(null)
   const commercialVideoRef = useRef<HTMLVideoElement>(null)
 
-  const [playbackState, setPlaybackState] = useState<PlaybackState>("loading")
-  const playbackStateRef = useRef<PlaybackState>("loading")
+  const [phase, setPhase] = useState<PlaybackPhase>("idle")
+  const phaseRef = useRef<PlaybackPhase>("idle")
   const [videoError, setVideoError] = useState<string | null>(null)
+  const [currentCommercialTitle, setCurrentCommercialTitle] = useState("")
 
-  // Break tracking
+  // Refs for mutable state the playback loop needs without re-renders
   const breakTimesRef = useRef<number[]>([])
   const nextBreakIndexRef = useRef(0)
-  const pausedForBreakRef = useRef(false)
+  const blockEndRef = useRef(0)       // epoch-seconds when the schedule block ends
+  const mediaIdRef = useRef<string | null>(null)
+  const abortRef = useRef(false)      // set true when media changes to abort in-flight sequences
+  const commercialsRef = useRef<CommercialItem[]>([])
 
-  // Padding tracking
-  const blockEndRef = useRef(0) // epoch seconds when schedule block ends
+  // Keep commercials ref in sync
+  useEffect(() => {
+    commercialsRef.current = commercials
+  }, [commercials])
 
-  // Sync setter that updates both state and ref
-  const updatePlaybackState = useCallback((newState: PlaybackState | ((prev: PlaybackState) => PlaybackState)) => {
-    setPlaybackState((prev) => {
-      const resolved = typeof newState === "function" ? newState(prev) : newState
-      playbackStateRef.current = resolved
-      return resolved
-    })
+  const updatePhase = useCallback((p: PlaybackPhase) => {
+    phaseRef.current = p
+    setPhase(p)
   }, [])
 
-  // Current commercial info for display
-  const [currentCommercialTitle, setCurrentCommercialTitle] = useState<string>("")
-
-  // Filter commercials based on the current media's allowed/excluded lists
+  // Filter commercials by the media's allowed/excluded lists
   const filteredCommercials = useMemo(() => {
     const allowed = media?.allowedCommercials ?? []
     const excluded = media?.excludedCommercials ?? []
-    const hasAllowed = allowed.length > 0
-    const hasExcluded = excluded.length > 0
-
-    if (!hasAllowed && !hasExcluded) {
-      // All blank = all allowed
-      return commercials
-    }
-
+    if (allowed.length === 0 && excluded.length === 0) return commercials
     return commercials.filter((c) => {
       const cat = c.commercialCategory || ""
-      if (hasAllowed) {
-        // Only allow checked categories
-        return allowed.includes(cat)
-      }
-      // Exclude X'd categories
+      if (allowed.length > 0) return allowed.includes(cat)
       return !excluded.includes(cat)
     })
   }, [commercials, media?.allowedCommercials, media?.excludedCommercials])
 
-  // Track media id so we reset state when media changes
-  const mediaIdRef = useRef<string | null>(null)
+  // Keep a ref for the filtered list too
+  const filteredRef = useRef<CommercialItem[]>([])
+  useEffect(() => {
+    filteredRef.current = filteredCommercials
+  }, [filteredCommercials])
 
   // ---- resolve video src ----
   const getVideoSrc = useCallback((filePath?: string): string | null => {
     if (!filePath) return null
-    if (
-      filePath.startsWith("http://") ||
-      filePath.startsWith("https://") ||
-      filePath.startsWith("blob:") ||
-      filePath.startsWith("data:")
-    ) {
-      return filePath
-    }
     return filePath
   }, [])
 
   const videoSrc = media?.filePath ? getVideoSrc(media.filePath) : null
 
-  // ---- compute block end epoch ----
+  // =========================================================================
+  //  Core helpers: ensure one video plays at a time
+  // =========================================================================
+
+  /** Completely stop and hide the main video */
+  const stopMain = useCallback(() => {
+    const v = mainVideoRef.current
+    if (!v) return
+    v.pause()
+    v.muted = true
+  }, [])
+
+  /** Resume main video: unmute, play */
+  const startMain = useCallback(() => {
+    const v = mainVideoRef.current
+    if (!v) return
+    v.muted = false
+    v.play().catch(() => {})
+  }, [])
+
+  /**
+   * Play a single commercial clip. Returns a Promise that resolves when the
+   * clip ends (or rejects if aborted / errored).
+   */
+  const playOneCommercial = useCallback((): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (abortRef.current) { reject(new Error("aborted")); return }
+
+      const pool = filteredRef.current.length > 0 ? filteredRef.current : commercialsRef.current
+      const pick = pickRandom(pool)
+      if (!pick) { resolve(); return }
+
+      const src = getVideoSrc(pick.filePath)
+      if (!src) { resolve(); return }
+
+      const cv = commercialVideoRef.current
+      if (!cv) { resolve(); return }
+
+      setCurrentCommercialTitle(pick.title)
+
+      // Wire up one-shot listeners
+      const cleanup = () => {
+        cv.removeEventListener("ended", onEnded)
+        cv.removeEventListener("error", onErr)
+      }
+      const onEnded = () => { cleanup(); resolve() }
+      const onErr = () => { cleanup(); resolve() } // resolve so the sequence continues
+
+      cv.addEventListener("ended", onEnded, { once: true })
+      cv.addEventListener("error", onErr, { once: true })
+
+      cv.src = src
+      cv.muted = false
+      cv.load()
+      cv.play().catch(() => { cleanup(); resolve() })
+    })
+  }, [getVideoSrc])
+
+  /**
+   * Play commercials for roughly `durationSec` seconds (or until aborted).
+   * Keeps looping through random clips until enough time has elapsed.
+   */
+  const playFillerForDuration = useCallback(async (durationSec: number) => {
+    const deadline = Date.now() / 1000 + durationSec
+    while (!abortRef.current) {
+      const remaining = deadline - Date.now() / 1000
+      if (remaining < 3) break // not enough time for another clip
+      await playOneCommercial()
+    }
+    setCurrentCommercialTitle("")
+  }, [playOneCommercial])
+
+  /**
+   * Play filler until the block end time (epoch seconds).
+   * Used for post-filler padding.
+   */
+  const playFillerUntilBlockEnd = useCallback(async () => {
+    while (!abortRef.current) {
+      const remaining = blockEndRef.current - Date.now() / 1000
+      if (remaining < 3) break
+      await playOneCommercial()
+    }
+    setCurrentCommercialTitle("")
+  }, [playOneCommercial])
+
+  // =========================================================================
+  //  Compute block end epoch whenever media changes
+  // =========================================================================
   useEffect(() => {
     if (!media) return
     const now = new Date()
     const end = parseScheduleTime(media.endTime)
     const blockEnd = new Date(now)
     blockEnd.setHours(end.hours24, end.minutes, 0, 0)
-    // if block end is before now, it's tomorrow (overnight)
     if (blockEnd.getTime() <= now.getTime()) {
       blockEnd.setDate(blockEnd.getDate() + 1)
     }
     blockEndRef.current = blockEnd.getTime() / 1000
   }, [media])
 
-  // ---- reset when media changes ----
+  // =========================================================================
+  //  Main orchestration: runs whenever media changes
+  // =========================================================================
   useEffect(() => {
     const newId = media?.id ?? null
     if (newId === mediaIdRef.current) return
     mediaIdRef.current = newId
 
-    setVideoError(null)
-    updatePlaybackState("loading")
-    setCurrentCommercialTitle("")
-    pausedForBreakRef.current = false
+    // Abort any in-flight filler sequence from the previous media
+    abortRef.current = true
+    // Use a micro-delay so any running async loop sees the abort flag
+    const runAsync = async () => {
+      await new Promise((r) => setTimeout(r, 50))
+      abortRef.current = false
 
-    // Parse break timecodes
-    const breaks = parseBreaks(media?.breaks)
-    breakTimesRef.current = breaks
+      setVideoError(null)
+      setCurrentCommercialTitle("")
 
-    // Skip any break points that have already passed given startOffset
-    const offset = media?.startOffset ?? 0
-    let startIdx = 0
-    if (offset > 0) {
-      while (startIdx < breaks.length && breaks[startIdx] <= offset) {
-        startIdx++
+      const mainVid = mainVideoRef.current
+      const comVid = commercialVideoRef.current
+      if (mainVid) { mainVid.pause(); mainVid.muted = true; mainVid.src = "" }
+      if (comVid) { comVid.pause(); comVid.muted = true; comVid.src = "" }
+
+      if (!media || !videoSrc) {
+        updatePhase(media ? "no-file" : "idle")
+        return
       }
-    }
-    nextBreakIndexRef.current = startIdx
-  }, [media?.id, media?.breaks, media?.startOffset])
 
-  // ---- load & play main video ----
-  useEffect(() => {
-    const video = mainVideoRef.current
-    if (!video || !videoSrc) return
+      // Parse break points
+      const breaks = parseBreaks(media.breaks)
+      breakTimesRef.current = breaks
+      const offset = media.startOffset ?? 0
+      let startIdx = 0
+      while (startIdx < breaks.length && breaks[startIdx] <= offset) startIdx++
+      nextBreakIndexRef.current = startIdx
 
-    video.src = videoSrc
-    video.load()
+      const fillStyle = media.fillStyle || "intermixed"
 
-    const onCanPlay = () => {
-      // Seek to the correct position based on how far into the schedule block we are
-      const offset = media?.startOffset ?? 0
-      if (offset > 0 && video.duration && offset < video.duration) {
-        video.currentTime = offset
+      // ---- Compute filler budget ----
+      const blockDuration = blockEndRef.current - Date.now() / 1000
+      const mediaDuration = (media.runtime ?? 0) * 60 - offset
+      const totalFillerTime = Math.max(0, blockDuration - mediaDuration)
+
+      // Number of break slots (in-media breaks + 1 end-of-show slot)
+      const remainingBreaks = breaks.length - startIdx
+      const breakSlots = remainingBreaks + 1 // breaks + end padding
+      const fillerPerSlot = breakSlots > 0 ? totalFillerTime / breakSlots : totalFillerTime
+
+      // ---- Phase: "at-beginning" filler ----
+      if (fillStyle === "at-beginning" && totalFillerTime > 5) {
+        updatePhase("pre-filler")
+        await playFillerForDuration(totalFillerTime)
+        if (abortRef.current) return
       }
-      video.muted = false
-      updatePlaybackState("playing-main")
-      video.play().catch(() => {
-        setVideoError("Autoplay blocked -- click the video to play")
+
+      // ---- Phase: load & play main video ----
+      updatePhase("loading")
+
+      if (!mainVid) return
+      mainVid.src = videoSrc
+      mainVid.load()
+
+      // Wait for canplay
+      await new Promise<void>((resolve, reject) => {
+        const onCanPlay = () => { mainVid.removeEventListener("error", onErr); resolve() }
+        const onErr = () => { mainVid.removeEventListener("canplay", onCanPlay); reject(new Error("load-error")) }
+        mainVid.addEventListener("canplay", onCanPlay, { once: true })
+        mainVid.addEventListener("error", onErr, { once: true })
+      }).catch(() => {
+        if (videoSrc && !videoSrc.startsWith("http") && !videoSrc.startsWith("blob:") && !videoSrc.startsWith("data:")) {
+          setVideoError("Cannot play local file paths directly in the browser. Re-add the file through the file picker so the browser has access, or use an HTTP URL.")
+        } else {
+          setVideoError("Unable to load video. The file may be missing or in an unsupported format.")
+        }
+        updatePhase("error")
+        return
       })
-    }
 
-    const onError = () => {
-      if (
-        videoSrc &&
-        !videoSrc.startsWith("http") &&
-        !videoSrc.startsWith("blob:") &&
-        !videoSrc.startsWith("data:")
-      ) {
-        setVideoError(
-          "Cannot play local file paths directly in the browser. Re-add the file through the file picker so the browser has access, or use an HTTP URL.",
-        )
-      } else {
-        setVideoError("Unable to load video. The file may be missing or in an unsupported format.")
+      if (abortRef.current || phaseRef.current === "error") return
+
+      // Seek if needed
+      if (offset > 0 && mainVid.duration && offset < mainVid.duration) {
+        mainVid.currentTime = offset
       }
-      updatePlaybackState("error")
+
+      // Start playback
+      mainVid.muted = false
+      updatePhase("playing-main")
+      try { await mainVid.play() } catch {
+        setVideoError("Autoplay blocked -- click the video to play")
+      }
+
+      // ==================================================================
+      //  Intermixed filler: wait for each break, pause main, play filler
+      // ==================================================================
+      if (fillStyle === "intermixed" || fillStyle === "none" || fillStyle === "static") {
+        // We drive the break loop from here so there is one single owner
+        const processBreaks = async () => {
+          while (!abortRef.current && !mainVid.ended) {
+            const idx = nextBreakIndexRef.current
+            if (idx >= breakTimesRef.current.length) break
+            const breakTime = breakTimesRef.current[idx]
+
+            // Poll until we reach the break point (or the video ends)
+            await new Promise<void>((resolve) => {
+              const check = () => {
+                if (abortRef.current || mainVid.ended) { resolve(); return }
+                if (mainVid.currentTime >= breakTime - 0.25) { resolve(); return }
+                requestAnimationFrame(check)
+              }
+              check()
+            })
+
+            if (abortRef.current || mainVid.ended) break
+
+            // ---- Hit a break: pause main, play filler ----
+            nextBreakIndexRef.current = idx + 1
+            mainVid.pause()
+            mainVid.muted = true
+            updatePhase("commercial-break")
+
+            if (fillStyle !== "none" && fillStyle !== "static" && fillerPerSlot > 3) {
+              await playFillerForDuration(fillerPerSlot)
+            }
+
+            if (abortRef.current) return
+
+            // ---- Resume main ----
+            mainVid.muted = false
+            updatePhase("playing-main")
+            try { await mainVid.play() } catch { /* ok */ }
+          }
+        }
+
+        await processBreaks()
+
+        // Wait for the main video to actually end (if it hasn't already)
+        if (!abortRef.current && !mainVid.ended) {
+          await new Promise<void>((resolve) => {
+            const onEnded = () => { mainVid.removeEventListener("ended", onEnded); resolve() }
+            mainVid.addEventListener("ended", onEnded, { once: true })
+          })
+        }
+
+        if (abortRef.current) return
+
+        // ---- Post-media padding (intermixed: fill remaining time) ----
+        const remaining = blockEndRef.current - Date.now() / 1000
+        if (fillStyle === "intermixed" && remaining > 5 && filteredRef.current.length > 0) {
+          mainVid.pause()
+          mainVid.muted = true
+          updatePhase("post-filler")
+          await playFillerUntilBlockEnd()
+        }
+      }
+
+      // ==================================================================
+      //  "at-end" filler: let main play uninterrupted, then pad after
+      // ==================================================================
+      if (fillStyle === "at-end") {
+        // Still respect break points (pause without filler, resume immediately)
+        // Actually for "at-end" we just let the video play through uninterrupted
+        await new Promise<void>((resolve) => {
+          const onEnded = () => { mainVid.removeEventListener("ended", onEnded); resolve() }
+          mainVid.addEventListener("ended", onEnded, { once: true })
+        })
+
+        if (abortRef.current) return
+
+        const remaining = blockEndRef.current - Date.now() / 1000
+        if (remaining > 5 && filteredRef.current.length > 0) {
+          mainVid.pause()
+          mainVid.muted = true
+          updatePhase("post-filler")
+          await playFillerUntilBlockEnd()
+        }
+      }
+
+      // ==================================================================
+      //  "at-beginning" already played filler above; main plays through
+      // ==================================================================
+      if (fillStyle === "at-beginning") {
+        await new Promise<void>((resolve) => {
+          if (mainVid.ended) { resolve(); return }
+          const onEnded = () => { mainVid.removeEventListener("ended", onEnded); resolve() }
+          mainVid.addEventListener("ended", onEnded, { once: true })
+        })
+      }
+
+      if (!abortRef.current) {
+        updatePhase("ended")
+      }
     }
 
-    video.addEventListener("canplay", onCanPlay, { once: true })
-    video.addEventListener("error", onError, { once: true })
+    runAsync()
 
     return () => {
-      video.removeEventListener("canplay", onCanPlay)
-      video.removeEventListener("error", onError)
+      abortRef.current = true
     }
-  }, [videoSrc, media?.startOffset])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media?.id])
 
-  // ---- monitor timeupdate for break points ----
-  useEffect(() => {
-    const video = mainVideoRef.current
-    if (!video) return
-
-    const onTimeUpdate = () => {
-      if (pausedForBreakRef.current) return
-      const breaks = breakTimesRef.current
-      const idx = nextBreakIndexRef.current
-      if (idx >= breaks.length) return
-
-      const currentTime = video.currentTime
-      const breakTime = breaks[idx]
-
-      // Trigger within 0.5s tolerance
-      if (currentTime >= breakTime - 0.25) {
-        pausedForBreakRef.current = true
-        video.pause()
-        video.muted = true
-        nextBreakIndexRef.current = idx + 1
-        playCommercial()
-      }
-    }
-
-    video.addEventListener("timeupdate", onTimeUpdate)
-    return () => video.removeEventListener("timeupdate", onTimeUpdate)
-  }, [commercials]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ---- handle main video ending -> pad with commercials ----
-  useEffect(() => {
-    const video = mainVideoRef.current
-    if (!video) return
-
-    const onEnded = () => {
-      const nowSec = Date.now() / 1000
-      const remaining = blockEndRef.current - nowSec
-      if (remaining > 5 && commercials.length > 0) {
-        // Mute main video and pad remaining time with commercials
-        video.muted = true
-        updatePlaybackState("padding-commercials")
-        playCommercial()
-      } else {
-        updatePlaybackState("ended")
-      }
-    }
-
-    video.addEventListener("ended", onEnded)
-    return () => video.removeEventListener("ended", onEnded)
-  }, [commercials]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ---- play a random commercial ----
-  const playCommercial = useCallback(() => {
-    const commercial = pickRandom(commercials)
-    if (!commercial) {
-      // No commercials available, resume main
-      resumeMain()
-      return
-    }
-
-    const src = getVideoSrc(commercial.filePath)
-    if (!src) {
-      resumeMain()
-      return
-    }
-
-    setCurrentCommercialTitle(commercial.title)
-    updatePlaybackState((prev) =>
-      prev === "padding-commercials" ? "padding-commercials" : "commercial-break",
-    )
-
-    const comVid = commercialVideoRef.current
-    if (!comVid) {
-      resumeMain()
-      return
-    }
-
-    comVid.src = src
-    comVid.load()
-
-    const onCanPlay = () => {
-      comVid.play().catch(() => {})
-    }
-
-    const onEnded = () => {
-      comVid.removeEventListener("canplay", onCanPlay)
-      comVid.removeEventListener("ended", onEnded)
-      comVid.removeEventListener("error", onErr)
-
-      // Check if the main video has ended and we need to keep padding
-      const mainVideo = mainVideoRef.current
-      const mainEnded = mainVideo ? mainVideo.ended : false
-      const nowSec = Date.now() / 1000
-      const remaining = blockEndRef.current - nowSec
-
-      if (mainEnded && remaining > 5 && commercials.length > 0) {
-        // Keep padding with more commercials
-        playCommercial()
-        return
-      }
-
-      // Resume main video (or end if main is done and block time is up)
-      resumeMain()
-    }
-
-    const onErr = () => {
-      comVid.removeEventListener("canplay", onCanPlay)
-      comVid.removeEventListener("ended", onEnded)
-      comVid.removeEventListener("error", onErr)
-      resumeMain()
-    }
-
-    comVid.addEventListener("canplay", onCanPlay, { once: true })
-    comVid.addEventListener("ended", onEnded, { once: true })
-    comVid.addEventListener("error", onErr, { once: true })
-  }, [commercials, getVideoSrc]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ---- resume main video after commercial ----
-  const resumeMain = useCallback(() => {
-    const video = mainVideoRef.current
-    if (!video) return
-
-    // If the main video already ended, check if we should keep padding
-    if (video.ended) {
-      const nowSec = Date.now() / 1000
-      const remaining = blockEndRef.current - nowSec
-      if (remaining > 5 && commercials.length > 0) {
-        updatePlaybackState("padding-commercials")
-        pausedForBreakRef.current = false
-        playCommercial()
-        return
-      }
-      updatePlaybackState("ended")
-      return
-    }
-
-    pausedForBreakRef.current = false
-    updatePlaybackState("playing-main")
-    setCurrentCommercialTitle("")
-    video.muted = false
-    video.play().catch(() => {})
-  }, [commercials]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ---- click to play / resume ----
+  // ---- click to play / pause ----
   const handleVideoClick = () => {
-    if (playbackState === "commercial-break" || playbackState === "padding-commercials") {
-      return // Don't interrupt commercials
-    }
+    if (
+      phaseRef.current === "commercial-break" ||
+      phaseRef.current === "post-filler" ||
+      phaseRef.current === "pre-filler"
+    ) return
     const video = mainVideoRef.current
     if (!video) return
     if (video.paused) {
+      video.muted = false
       video.play().catch(() => {})
-      updatePlaybackState("playing-main")
+      updatePhase("playing-main")
     } else {
       video.pause()
     }
@@ -446,43 +497,44 @@ export function VirtualTVDisplay({
     )
   }
 
-  // ---- determine what to show ----
-  const showMainVideo =
-    playbackState === "playing-main" || playbackState === "loading"
-  const showCommercialVideo =
-    playbackState === "commercial-break" || playbackState === "padding-commercials"
+  // ---- determine visibility ----
+  const showCommercial =
+    phase === "commercial-break" || phase === "post-filler" || phase === "pre-filler"
+  const showMain = !showCommercial
 
   return (
     <div className="w-full h-full relative">
       <div className="w-full h-full bg-black flex items-center justify-center">
         {media && videoSrc ? (
           <>
-            {/* Main program video -- hidden & muted during commercials */}
+            {/* Main program video */}
             <video
               ref={mainVideoRef}
-              className={`w-full h-full object-contain cursor-pointer ${showCommercialVideo ? "hidden" : ""}`}
+              className={`w-full h-full object-contain cursor-pointer ${showCommercial ? "hidden" : ""}`}
               onClick={handleVideoClick}
               playsInline
             />
 
-            {/* Commercial video -- hidden when main is playing */}
+            {/* Commercial / filler video */}
             <video
               ref={commercialVideoRef}
-              className={`w-full h-full object-contain ${showCommercialVideo ? "" : "hidden"}`}
+              className={`w-full h-full object-contain ${showCommercial ? "" : "hidden"}`}
               playsInline
             />
 
             {/* Commercial overlay label */}
-            {showCommercialVideo && currentCommercialTitle && (
+            {showCommercial && currentCommercialTitle && (
               <div className="absolute top-4 left-4 bg-black/70 text-white text-xs px-3 py-1.5 rounded z-10">
-                {playbackState === "padding-commercials"
-                  ? `Commercial: ${currentCommercialTitle}`
-                  : `Commercial Break: ${currentCommercialTitle}`}
+                {phase === "pre-filler"
+                  ? `Starting Soon: ${currentCommercialTitle}`
+                  : phase === "post-filler"
+                    ? `Up Next: ${currentCommercialTitle}`
+                    : `Commercial Break: ${currentCommercialTitle}`}
               </div>
             )}
 
             {/* Loading indicator */}
-            {playbackState === "loading" && (
+            {phase === "loading" && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/80">
                 <div className="text-center text-white">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4" />
@@ -506,7 +558,7 @@ export function VirtualTVDisplay({
             )}
 
             {/* Ended state */}
-            {playbackState === "ended" && (
+            {phase === "ended" && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/80">
                 <div className="text-center text-white">
                   <div className="text-xl font-bold mb-2">{media.title}</div>
@@ -538,7 +590,7 @@ export function VirtualTVDisplay({
           </div>
         )}
 
-        {/* Channel Overlay (if enabled) — use TV show override if set */}
+        {/* Channel Overlay */}
         {channel.overlay && (() => {
           const pos = media?.overlayPositionOverride || channel.overlayPosition || "bottom-right"
           const opacity = (channel.overlayOpacity ?? 40) / 100

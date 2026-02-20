@@ -255,14 +255,8 @@ export function useImportExport() {
   const exportChannels = async (): Promise<Blob> => {
     const channels: Channel[] = JSON.parse(localStorage.getItem("virtualTvChannels") || "[]")
 
-    // Debug: log what images channels have
-    channels.forEach((ch, i) => {
-      console.log(`[v0] Export ch[${i}] "${ch.name}" logo=${ch.logo ? ch.logo.substring(0, 60) + "..." : "none"} overlay=${ch.overlay ? ch.overlay.substring(0, 60) + "..." : "none"}`)
-    })
-
     // Collect all data-URL file references
     const fileUrls = collectFileUrls(channels)
-    console.log(`[v0] Export: collected ${fileUrls.length} file URLs`, fileUrls.map(u => u.substring(0, 60)))
 
     const zip = new JSZip()
     const assetsFolder = zip.folder("assets")!
@@ -295,15 +289,8 @@ export function useImportExport() {
       }
     }
 
-    console.log(`[v0] Export: urlToFilenameMap has ${Object.keys(urlToFilenameMap).length} entries`, urlToFilenameMap)
-
     // Replace data URLs in channel objects with relative filenames
     const processedChannels = replaceUrlsWithKeys(channels, urlToFilenameMap)
-
-    // Debug: verify replacement happened
-    processedChannels.forEach((ch: any, i: number) => {
-      console.log(`[v0] Export processed ch[${i}] logo=${typeof ch.logo === "string" ? ch.logo.substring(0, 80) : "none"} overlay=${typeof ch.overlay === "string" ? ch.overlay.substring(0, 80) : "none"}`)
-    })
 
     const manifest: ChannelExportJson = {
       version: "2.0.0",
@@ -353,7 +340,6 @@ export function useImportExport() {
     }
 
     const assetFiles = Object.keys(zip.files).filter((name) => name.startsWith("assets/") && !zip.files[name].dir)
-    console.log(`[v0] Import: found ${assetFiles.length} asset files in ZIP:`, assetFiles)
     for (const assetPath of assetFiles) {
       const assetFile = zip.file(assetPath)
       if (!assetFile) continue
@@ -375,14 +361,7 @@ export function useImportExport() {
       })
       // The key is the relative path used in replaceUrlsWithKeys (e.g. "assets/asset_0.png")
       assetDataUrls[assetPath] = dataUrl
-      console.log(`[v0] Import: restored ${assetPath} -> ${dataUrl.substring(0, 60)}...`)
     }
-
-    console.log(`[v0] Import: assetDataUrls keys:`, Object.keys(assetDataUrls))
-    console.log(`[v0] Import: manifest channels before restore:`)
-    manifest.channels.forEach((ch: any, i: number) => {
-      console.log(`[v0]   ch[${i}] logo=${typeof ch.logo === "string" ? ch.logo.substring(0, 80) : "none"} overlay=${typeof ch.overlay === "string" ? ch.overlay.substring(0, 80) : "none"}`)
-    })
 
     // Restore file references: replace __ASSET__assets/asset_0.png -> data URL
     const restoredChannels: Channel[] = replaceKeysWithUrls(
@@ -390,11 +369,6 @@ export function useImportExport() {
       assetDataUrls,
       true,
     )
-
-    console.log(`[v0] Import: restored channels:`)
-    restoredChannels.forEach((ch: any, i: number) => {
-      console.log(`[v0]   ch[${i}] logo=${typeof ch.logo === "string" ? ch.logo.substring(0, 80) : "none"} overlay=${typeof ch.overlay === "string" ? ch.overlay.substring(0, 80) : "none"}`)
-    })
 
     // Merge with existing channels — match by channel number, otherwise append
     const existingChannels: Channel[] = JSON.parse(localStorage.getItem("virtualTvChannels") || "[]")
