@@ -213,13 +213,25 @@ export function VirtualTVDisplay({
   /**
    * Play commercials for roughly `durationSec` seconds (or until aborted).
    * Keeps looping through random clips until enough time has elapsed.
+   * Has a safety cap to prevent infinite loops.
    */
   const playFillerForDuration = useCallback(async (durationSec: number) => {
+    if (durationSec <= 0) return
     const deadline = Date.now() / 1000 + durationSec
-    while (!abortRef.current) {
+    const maxClips = Math.ceil(durationSec / 5) + 5 // safety: assume min 5s per clip
+    let clipCount = 0
+    while (!abortRef.current && clipCount < maxClips) {
       const remaining = deadline - Date.now() / 1000
       if (remaining < 3) break // not enough time for another clip
+      const before = Date.now()
       await playOneCommercial()
+      const elapsed = Date.now() - before
+      clipCount++
+      // If a clip resolved in under 500ms it likely errored/was empty; break to avoid spin
+      if (elapsed < 500) {
+        console.log("[v0] Filler clip resolved too fast, breaking to avoid loop")
+        break
+      }
     }
     // Ensure commercial video is fully stopped
     const cv = commercialVideoRef.current
@@ -229,13 +241,22 @@ export function VirtualTVDisplay({
 
   /**
    * Play filler until the block end time (epoch seconds).
-   * Used for post-filler padding.
+   * Used for post-filler padding. Safety-capped to prevent infinite loops.
    */
   const playFillerUntilBlockEnd = useCallback(async () => {
-    while (!abortRef.current) {
+    const maxClips = 100 // hard safety cap
+    let clipCount = 0
+    while (!abortRef.current && clipCount < maxClips) {
       const remaining = blockEndRef.current - Date.now() / 1000
       if (remaining < 3) break
+      const before = Date.now()
       await playOneCommercial()
+      const elapsed = Date.now() - before
+      clipCount++
+      if (elapsed < 500) {
+        console.log("[v0] Filler clip resolved too fast, breaking to avoid loop")
+        break
+      }
     }
     const cv = commercialVideoRef.current
     if (cv) { cv.pause(); cv.muted = true }
@@ -299,19 +320,25 @@ export function VirtualTVDisplay({
       const fillStyle = media.fillStyle || "intermixed"
 
       // ---- Compute filler budget ----
-      const blockDuration = blockEndRef.current - Date.now() / 1000
-      const mediaDuration = (media.runtime ?? 0) * 60 - offset
+      const blockDuration = Math.max(0, blockEndRef.current - Date.now() / 1000)
+      // Use the actual loaded video duration if available, otherwise fall back to metadata
+      const videoDurationSec = mainVid.duration && isFinite(mainVid.duration)
+        ? mainVid.duration - offset
+        : (media.runtime ?? 0) * 60 - offset
+      const mediaDuration = Math.max(0, videoDurationSec)
       const totalFillerTime = Math.max(0, blockDuration - mediaDuration)
+      // Cap filler to a reasonable maximum (the entire block duration)
+      const cappedFillerTime = Math.min(totalFillerTime, blockDuration)
 
       // Number of break slots (in-media breaks + 1 end-of-show slot)
       const remainingBreaks = breaks.length - startIdx
       const breakSlots = remainingBreaks + 1 // breaks + end padding
-      const fillerPerSlot = breakSlots > 0 ? totalFillerTime / breakSlots : totalFillerTime
+      const fillerPerSlot = breakSlots > 0 ? cappedFillerTime / breakSlots : cappedFillerTime
 
       // ---- Phase: "at-beginning" filler ----
-      if (fillStyle === "at-beginning" && totalFillerTime > 5) {
+      if (fillStyle === "at-beginning" && cappedFillerTime > 5) {
         updatePhase("pre-filler")
-        await playFillerForDuration(totalFillerTime)
+        await playFillerForDuration(cappedFillerTime)
         if (abortRef.current) return
       }
 
@@ -363,14 +390,18 @@ export function VirtualTVDisplay({
             if (idx >= breakTimesRef.current.length) break
             const breakTime = breakTimesRef.current[idx]
 
-            // Poll until we reach the break point (or the video ends)
+            // Poll until we reach the break point (or the video ends/aborts)
             await new Promise<void>((resolve) => {
+              let rafId: number
               const check = () => {
                 if (abortRef.current || mainVid.ended) { resolve(); return }
                 if (mainVid.currentTime >= breakTime - 0.25) { resolve(); return }
-                requestAnimationFrame(check)
+                rafId = requestAnimationFrame(check)
               }
               check()
+              // Also listen for ended/pause in case RAF misses it
+              const onEnd = () => { cancelAnimationFrame(rafId); resolve() }
+              mainVid.addEventListener("ended", onEnd, { once: true })
             })
 
             if (abortRef.current || mainVid.ended) break
