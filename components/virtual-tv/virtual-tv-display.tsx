@@ -335,8 +335,16 @@ export function VirtualTVDisplay({
       const breakSlots = remainingBreaks + 1 // breaks + end padding
       const fillerPerSlot = breakSlots > 0 ? cappedFillerTime / breakSlots : cappedFillerTime
 
+      // ---- Phase: tuned-in during a filler break ----
+      const fillerRemaining = media.fillerRemainingSec ?? 0
+      if (fillerRemaining > 3) {
+        updatePhase("commercial-break")
+        await playFillerForDuration(fillerRemaining)
+        if (abortRef.current) return
+      }
+
       // ---- Phase: "at-beginning" filler ----
-      if (fillStyle === "at-beginning" && cappedFillerTime > 5) {
+      if (fillStyle === "at-beginning" && cappedFillerTime > 5 && fillerRemaining <= 0) {
         updatePhase("pre-filler")
         await playFillerForDuration(cappedFillerTime)
         if (abortRef.current) return

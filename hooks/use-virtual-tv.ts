@@ -31,6 +31,8 @@ export interface CurrentMedia {
   excludedCommercials?: string[]
   overlayPositionOverride?: string
   fillStyle?: "intermixed" | "at-end" | "at-beginning" | "none" | "static"
+  /** Seconds of filler remaining if the user tuned in during a commercial break */
+  fillerRemainingSec?: number
   /** Seconds elapsed since the schedule block started — used to seek into the media */
   startOffset: number
 }
@@ -142,11 +144,13 @@ export function useVirtualTV(channelNumber: number) {
         return ((h % 12) + (period === "PM" ? 12 : 0)) * 3600 + m * 60
       }
       const nowSec = hours * 3600 + minutes * 60 + new Date().getSeconds()
-      let startSec = parseTime12(currentScheduleItem.startTime)
-      let elapsed = nowSec - startSec
-      // handle overnight wraparound
-      if (elapsed < 0) elapsed += 24 * 3600
-      const startOffset = Math.max(0, elapsed)
+      let blockStartSec = parseTime12(currentScheduleItem.startTime)
+      let blockEndSec = parseTime12(currentScheduleItem.endTime)
+      // Handle overnight wraparound
+      if (blockEndSec <= blockStartSec) blockEndSec += 24 * 3600
+      let wallElapsed = nowSec - blockStartSec
+      if (wallElapsed < 0) wallElapsed += 24 * 3600
+      wallElapsed = Math.max(0, wallElapsed)
 
       // Determine the file path to play
       let filePath: string | undefined
@@ -163,6 +167,96 @@ export function useVirtualTV(channelNumber: number) {
         breaksStr = mediaItem.breaks
       }
 
+      // ---- Compute filler-aware startOffset ----
+      // For "intermixed" filler, the wall-clock timeline is:
+      //   [optional pre-filler] [media segment 1] [filler break 1] [media segment 2] [filler break 2] ... [media end] [end padding filler]
+      // We need to figure out where in the *media* we are given the wall-clock elapsed time.
+      const fillStyle = currentScheduleItem.fillStyle || "intermixed"
+      const blockDuration = blockEndSec - blockStartSec
+      const mediaDurationSec = (mediaRuntime ?? 0) * 60
+      const totalFillerTime = Math.max(0, blockDuration - mediaDurationSec)
+
+      // Parse break times from the breaks string (e.g. "15:30,45:00,1:10:30")
+      const parseBreaksStr = (str?: string): number[] => {
+        if (!str) return []
+        return str.split(",").map((s) => {
+          const parts = s.trim().split(":").map(Number)
+          if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
+          if (parts.length === 2) return parts[0] * 60 + parts[1]
+          return parts[0]
+        }).filter((n) => !isNaN(n) && n > 0).sort((a, b) => a - b)
+      }
+
+      const breakTimes = parseBreaksStr(breaksStr)
+
+      let startOffset: number = wallElapsed // default: raw elapsed
+      let fillerRemainingSec = 0
+
+      if (fillStyle === "intermixed" && totalFillerTime > 0 && breakTimes.length > 0) {
+        // Distribute filler evenly across break slots (breaks + 1 end-padding slot)
+        const breakSlots = breakTimes.length + 1
+        const fillerPerSlot = totalFillerTime / breakSlots
+
+        // Walk through the timeline: alternate media segments and filler breaks
+        // to convert wallElapsed -> mediaOffset
+        let wallCursor = 0
+        let mediaCursor = 0
+        let prevBreak = 0
+        let resolved = false
+
+        for (let i = 0; i < breakTimes.length; i++) {
+          const segmentDuration = breakTimes[i] - prevBreak
+          const wallSegEnd = wallCursor + segmentDuration
+          const wallBreakEnd = wallSegEnd + fillerPerSlot
+
+          if (wallElapsed <= wallSegEnd) {
+            // Within this media segment (before its filler break)
+            mediaCursor += (wallElapsed - wallCursor)
+            startOffset = mediaCursor
+            resolved = true
+            break
+          } else if (wallElapsed <= wallBreakEnd) {
+            // Within the filler break after this segment -- media is paused
+            mediaCursor += segmentDuration
+            startOffset = mediaCursor
+            fillerRemainingSec = wallBreakEnd - wallElapsed
+            resolved = true
+            break
+          } else {
+            wallCursor = wallBreakEnd
+            mediaCursor += segmentDuration
+            prevBreak = breakTimes[i]
+          }
+        }
+
+        // Handle time after the last break (final media segment + end padding)
+        if (!resolved) {
+          const lastSegment = mediaDurationSec - prevBreak
+          if (wallElapsed <= wallCursor + lastSegment) {
+            mediaCursor += (wallElapsed - wallCursor)
+            startOffset = mediaCursor
+          } else {
+            // Past the media; in end-padding filler or done
+            startOffset = mediaDurationSec
+          }
+        }
+
+        startOffset = Math.min(startOffset, mediaDurationSec)
+      } else if (fillStyle === "at-beginning" && totalFillerTime > 0) {
+        if (wallElapsed <= totalFillerTime) {
+          // Still in the pre-show filler
+          startOffset = 0
+          fillerRemainingSec = totalFillerTime - wallElapsed
+        } else {
+          startOffset = wallElapsed - totalFillerTime
+        }
+      } else {
+        // "at-end", "none", "static" — media starts immediately
+        startOffset = wallElapsed
+      }
+
+      startOffset = Math.max(0, Math.min(startOffset, mediaDurationSec > 0 ? mediaDurationSec : wallElapsed))
+
       const media: CurrentMedia = {
         id: mediaItem.id,
         title: mediaItem.title,
@@ -177,6 +271,7 @@ export function useVirtualTV(channelNumber: number) {
         excludedCommercials: mediaItem.excludedCommercials || [],
         overlayPositionOverride: mediaItem.overlayPositionOverride,
         fillStyle: currentScheduleItem.fillStyle || "intermixed",
+        fillerRemainingSec: fillerRemainingSec > 0 ? fillerRemainingSec : undefined,
         startOffset,
       }
 
