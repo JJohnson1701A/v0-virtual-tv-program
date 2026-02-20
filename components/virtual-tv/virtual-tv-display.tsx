@@ -103,6 +103,22 @@ export function VirtualTVDisplay({
     commercialsRef.current = commercials
   }, [commercials])
 
+  // Hard-stop all video elements (used on unmount and channel change)
+  const hardStopAll = useCallback(() => {
+    const mv = mainVideoRef.current
+    const cv = commercialVideoRef.current
+    if (mv) { mv.pause(); mv.muted = true; mv.removeAttribute("src"); mv.load() }
+    if (cv) { cv.pause(); cv.muted = true; cv.removeAttribute("src"); cv.load() }
+  }, [])
+
+  // Stop all playback when leaving the page / unmounting
+  useEffect(() => {
+    return () => {
+      abortRef.current = true
+      hardStopAll()
+    }
+  }, [hardStopAll])
+
   const updatePhase = useCallback((p: PlaybackPhase) => {
     phaseRef.current = p
     setPhase(p)
@@ -178,6 +194,8 @@ export function VirtualTVDisplay({
       const cleanup = () => {
         cv.removeEventListener("ended", onEnded)
         cv.removeEventListener("error", onErr)
+        cv.pause()
+        cv.muted = true
       }
       const onEnded = () => { cleanup(); resolve() }
       const onErr = () => { cleanup(); resolve() } // resolve so the sequence continues
@@ -203,6 +221,9 @@ export function VirtualTVDisplay({
       if (remaining < 3) break // not enough time for another clip
       await playOneCommercial()
     }
+    // Ensure commercial video is fully stopped
+    const cv = commercialVideoRef.current
+    if (cv) { cv.pause(); cv.muted = true }
     setCurrentCommercialTitle("")
   }, [playOneCommercial])
 
@@ -216,6 +237,8 @@ export function VirtualTVDisplay({
       if (remaining < 3) break
       await playOneCommercial()
     }
+    const cv = commercialVideoRef.current
+    if (cv) { cv.pause(); cv.muted = true }
     setCurrentCommercialTitle("")
   }, [playOneCommercial])
 
@@ -237,16 +260,20 @@ export function VirtualTVDisplay({
   // =========================================================================
   //  Main orchestration: runs whenever media changes
   // =========================================================================
-  useEffect(() => {
-    const newId = media?.id ?? null
-    if (newId === mediaIdRef.current) return
-    mediaIdRef.current = newId
+  // Use a composite key of channel number + media id so that switching channels
+  // always triggers a full teardown/restart even if the media id hasn't changed yet.
+  const mediaKey = channel?.number + "|" + (media?.id ?? "none")
 
+  useEffect(() => {
     // Abort any in-flight filler sequence from the previous media
     abortRef.current = true
+
+    // Hard-stop both video elements immediately so no audio leaks
+    hardStopAll()
+
     // Use a micro-delay so any running async loop sees the abort flag
     const runAsync = async () => {
-      await new Promise((r) => setTimeout(r, 50))
+      await new Promise((r) => setTimeout(r, 80))
       abortRef.current = false
 
       setVideoError(null)
@@ -254,8 +281,7 @@ export function VirtualTVDisplay({
 
       const mainVid = mainVideoRef.current
       const comVid = commercialVideoRef.current
-      if (mainVid) { mainVid.pause(); mainVid.muted = true; mainVid.src = "" }
-      if (comVid) { comVid.pause(); comVid.muted = true; comVid.src = "" }
+      if (!mainVid || !comVid) return
 
       if (!media || !videoSrc) {
         updatePhase(media ? "no-file" : "idle")
@@ -432,9 +458,10 @@ export function VirtualTVDisplay({
 
     return () => {
       abortRef.current = true
+      hardStopAll()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [media?.id])
+  }, [mediaKey])
 
   // ---- click to play / pause ----
   const handleVideoClick = () => {
