@@ -220,10 +220,8 @@ export function VirtualTVDisplay({
     const deadline = Date.now() / 1000 + durationSec
     const maxClips = Math.ceil(durationSec / 5) + 5 // safety: assume min 5s per clip
     let clipCount = 0
-    console.log("[v0] playFillerForDuration start:", durationSec, "sec, maxClips:", maxClips)
     while (!abortRef.current && clipCount < maxClips) {
       const remaining = deadline - Date.now() / 1000
-      console.log("[v0] filler loop: clip", clipCount, "remaining", remaining.toFixed(1), "sec")
       if (remaining < 3) break // not enough time for another clip
       const before = Date.now()
       await playOneCommercial()
@@ -231,7 +229,6 @@ export function VirtualTVDisplay({
       clipCount++
       // If a clip resolved in under 500ms it likely errored/was empty; break to avoid spin
       if (elapsed < 500) {
-        console.log("[v0] Filler clip resolved too fast, breaking to avoid loop")
         break
       }
     }
@@ -256,7 +253,6 @@ export function VirtualTVDisplay({
       const elapsed = Date.now() - before
       clipCount++
       if (elapsed < 500) {
-        console.log("[v0] Filler clip resolved too fast, breaking to avoid loop")
         break
       }
     }
@@ -266,18 +262,27 @@ export function VirtualTVDisplay({
   }, [playOneCommercial])
 
   // =========================================================================
-  //  Compute block end epoch whenever media changes
+  //  Set block end epoch from the hook's pre-computed value
   // =========================================================================
   useEffect(() => {
     if (!media) return
-    const now = new Date()
-    const end = parseScheduleTime(media.endTime)
-    const blockEnd = new Date(now)
-    blockEnd.setHours(end.hours24, end.minutes, 0, 0)
-    if (blockEnd.getTime() <= now.getTime()) {
-      blockEnd.setDate(blockEnd.getDate() + 1)
+    if (media.blockEndEpoch) {
+      blockEndRef.current = media.blockEndEpoch
+    } else {
+      // Fallback: compute from schedule times (for blocks/marathons that don't set it)
+      const now = new Date()
+      const end = parseScheduleTime(media.endTime)
+      const blockEnd = new Date(now)
+      blockEnd.setHours(end.hours24, end.minutes, 0, 0)
+      // Only add a day for genuine overnight wraps, not same-day blocks
+      const start = parseScheduleTime(media.startTime)
+      const startDate = new Date(now)
+      startDate.setHours(start.hours24, start.minutes, 0, 0)
+      if (blockEnd.getTime() <= startDate.getTime()) {
+        blockEnd.setDate(blockEnd.getDate() + 1)
+      }
+      blockEndRef.current = blockEnd.getTime() / 1000
     }
-    blockEndRef.current = blockEnd.getTime() / 1000
   }, [media])
 
   // =========================================================================
@@ -337,26 +342,11 @@ export function VirtualTVDisplay({
       const breakSlots = remainingBreaks + 1 // breaks + end padding
       const fillerPerSlot = breakSlots > 0 ? cappedFillerTime / breakSlots : cappedFillerTime
 
-      console.log("[v0] Orchestration start:", {
-        fillStyle,
-        offset,
-        blockDuration,
-        mediaDuration,
-        totalFillerTime: cappedFillerTime,
-        remainingBreaks: breaks.length - startIdx,
-        fillerPerSlot,
-        startIdx,
-        breaks,
-        fillerRemainingSec: media.fillerRemainingSec,
-      })
-
       // ---- Phase: tuned-in during a filler break ----
       const fillerRemaining = media.fillerRemainingSec ?? 0
       if (fillerRemaining > 3) {
-        console.log("[v0] Playing tune-in filler for", fillerRemaining, "seconds")
         updatePhase("commercial-break")
         await playFillerForDuration(fillerRemaining)
-        console.log("[v0] Tune-in filler done, aborted?", abortRef.current)
         if (abortRef.current) return
       }
 
@@ -398,7 +388,6 @@ export function VirtualTVDisplay({
       }
 
       // Start playback
-      console.log("[v0] Starting main playback. currentTime:", mainVid.currentTime, "duration:", mainVid.duration, "offset:", offset)
       mainVid.muted = false
       updatePhase("playing-main")
       try { await mainVid.play() } catch {
@@ -433,22 +422,18 @@ export function VirtualTVDisplay({
             if (abortRef.current || mainVid.ended) break
 
             // ---- Hit a break: pause main, play filler ----
-            console.log("[v0] Hit break idx", idx, "at media time", mainVid.currentTime, "breakTime", breakTime, "fillerPerSlot", fillerPerSlot)
             nextBreakIndexRef.current = idx + 1
             mainVid.pause()
             mainVid.muted = true
             updatePhase("commercial-break")
 
             if (fillStyle !== "none" && fillStyle !== "static" && fillerPerSlot > 3) {
-              console.log("[v0] Playing", fillerPerSlot, "sec of filler for break", idx)
               await playFillerForDuration(fillerPerSlot)
-              console.log("[v0] Filler done for break", idx, "aborted?", abortRef.current)
             }
 
             if (abortRef.current) return
 
             // ---- Resume main ----
-            console.log("[v0] Resuming main after break", idx, "at media time", mainVid.currentTime)
             mainVid.muted = false
             updatePhase("playing-main")
             try { await mainVid.play() } catch { /* ok */ }

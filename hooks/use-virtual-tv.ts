@@ -33,6 +33,8 @@ export interface CurrentMedia {
   fillStyle?: "intermixed" | "at-end" | "at-beginning" | "none" | "static"
   /** Seconds of filler remaining if the user tuned in during a commercial break */
   fillerRemainingSec?: number
+  /** Epoch seconds when this schedule block ends */
+  blockEndEpoch?: number
   /** Seconds elapsed since the schedule block started — used to seek into the media */
   startOffset: number
 }
@@ -143,14 +145,20 @@ export function useVirtualTV(channelNumber: number) {
         const [h, m] = time.split(":").map(Number)
         return ((h % 12) + (period === "PM" ? 12 : 0)) * 3600 + m * 60
       }
-      const nowSec = hours * 3600 + minutes * 60 + new Date().getSeconds()
+      const now = new Date()
+      const nowSec = hours * 3600 + minutes * 60 + now.getSeconds()
       let blockStartSec = parseTime12(currentScheduleItem.startTime)
       let blockEndSec = parseTime12(currentScheduleItem.endTime)
-      // Handle overnight wraparound
+      // Handle overnight wraparound (e.g., 11:00 PM to 1:00 AM)
       if (blockEndSec <= blockStartSec) blockEndSec += 24 * 3600
+      const blockDuration = blockEndSec - blockStartSec
+
       let wallElapsed = nowSec - blockStartSec
       if (wallElapsed < 0) wallElapsed += 24 * 3600
       wallElapsed = Math.max(0, wallElapsed)
+
+      // Compute the actual epoch timestamp for block end
+      const blockEndEpoch = now.getTime() / 1000 + (blockDuration - wallElapsed)
 
       // Determine the file path to play
       let filePath: string | undefined
@@ -272,6 +280,7 @@ export function useVirtualTV(channelNumber: number) {
         overlayPositionOverride: mediaItem.overlayPositionOverride,
         fillStyle: currentScheduleItem.fillStyle || "intermixed",
         fillerRemainingSec: fillerRemainingSec > 0 ? fillerRemainingSec : undefined,
+        blockEndEpoch,
         startOffset,
       }
 
