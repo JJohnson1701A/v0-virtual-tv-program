@@ -180,7 +180,6 @@ export function useVirtualTV(channelNumber: number) {
       //   [optional pre-filler] [media segment 1] [filler break 1] [media segment 2] [filler break 2] ... [media end] [end padding filler]
       // We need to figure out where in the *media* we are given the wall-clock elapsed time.
       const fillStyle = currentScheduleItem.fillStyle || "intermixed"
-      const blockDuration = blockEndSec - blockStartSec
       const mediaDurationSec = (mediaRuntime ?? 0) * 60
       const totalFillerTime = Math.max(0, blockDuration - mediaDurationSec)
 
