@@ -1,6 +1,5 @@
 "use client"
 
-import JSZip from "jszip"
 import type { MediaItem } from "@/types/media"
 import type { Channel } from "@/types/channel"
 import type { Settings } from "@/hooks/use-settings"
@@ -253,6 +252,7 @@ export function useImportExport() {
   }
 
   const exportChannels = async (): Promise<Blob> => {
+    const JSZip = (await import("jszip")).default
     const channels: Channel[] = JSON.parse(localStorage.getItem("virtualTvChannels") || "[]")
 
     // Collect all data-URL file references
@@ -305,6 +305,7 @@ export function useImportExport() {
   }
 
   const importChannels = async (file: File): Promise<{ count: number }> => {
+    const JSZip = (await import("jszip")).default
     const zip = await JSZip.loadAsync(file)
 
     // Read the manifest JSON
