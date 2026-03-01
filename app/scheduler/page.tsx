@@ -10,6 +10,7 @@ import { useChannels } from "@/hooks/use-channels"
 import { useSchedule } from "@/hooks/use-schedule"
 import { useSettings } from "@/hooks/use-settings"
 import { useToast } from "@/hooks/use-toast"
+import { useAutoScheduler } from "@/hooks/use-auto-scheduler"
 import { CalendarIcon } from "lucide-react"
 import type { ScheduleItem, TimeSlot } from "@/types/schedule"
 
@@ -23,6 +24,7 @@ export default function SchedulerPage() {
   const [showScheduleDialog, setShowScheduleDialog] = useState(false)
 
   const { scheduleItems, addScheduleItems, updateScheduleItems, deleteScheduleItem } = useSchedule(selectedChannelId)
+  const { autoScheduleChannel } = useAutoScheduler()
 
   const selectedChannel = channels.find((c) => c.id === selectedChannelId)
 
@@ -66,47 +68,86 @@ export default function SchedulerPage() {
   }
 
   const handleAutoSchedule = () => {
-    // Mock auto-schedule functionality
+    if (!selectedChannel) {
+      toast({
+        title: "No Channel Selected",
+        description: "Please select a channel to auto-schedule.",
+        variant: "destructive",
+      })
+      return
+    }
+
     toast({
       title: "Auto-Schedule Started",
-      description: "Automatically filling empty time slots with appropriate media from your library...",
+      description: `Filling empty time slots on ${selectedChannel.name}...`,
     })
 
-    // In a real implementation, this would:
-    // 1. Analyze empty time slots across all channels
-    // 2. Match appropriate media based on settings (safe harbor, audience match, etc.)
-    // 3. Fill the schedule automatically
-    // 4. Respect channel-specific media assignments
-    // 5. Handle filler content appropriately
+    // Get all existing schedules for this channel
+    const storedSchedules = localStorage.getItem("virtualTvSchedules")
+    const allSchedules: ScheduleItem[] = storedSchedules ? JSON.parse(storedSchedules) : []
 
-    setTimeout(() => {
+    // Run auto-scheduler for the selected channel
+    const { newItems, result } = autoScheduleChannel(selectedChannel, settings, allSchedules)
+
+    if (newItems.length > 0) {
+      // Add the new schedule items
+      addScheduleItems(newItems)
+
       toast({
         title: "Auto-Schedule Complete",
-        description: "Schedule has been automatically filled. Review the changes in each channel.",
+        description: `Scheduled ${result.scheduled} items. ${result.skipped} slots skipped (no suitable media).`,
       })
-    }, 2000)
+    } else if (result.errors.length > 0) {
+      toast({
+        title: "Auto-Schedule Failed",
+        description: result.errors[0],
+        variant: "destructive",
+      })
+    } else {
+      toast({
+        title: "Auto-Schedule Complete",
+        description: "No empty slots to fill or no suitable media found.",
+      })
+    }
   }
 
   const handleRefreshSchedule = () => {
-    // Mock refresh schedule functionality
+    if (!selectedChannel) {
+      toast({
+        title: "No Channel Selected",
+        description: "Please select a channel to refresh schedule.",
+        variant: "destructive",
+      })
+      return
+    }
+
     toast({
       title: "Refresh Schedule Started",
-      description: "Re-running auto-scheduler with updated media library while preserving manual schedules...",
+      description: `Re-running auto-scheduler on ${selectedChannel.name}...`,
     })
 
-    // In a real implementation, this would:
-    // 1. Identify manually scheduled items (preserve them)
-    // 2. Clear auto-scheduled items only
-    // 3. Re-run auto-scheduler with current media library
-    // 4. Fill empty slots with new/updated media
-    // 5. Respect all settings (safe harbor, audience match, etc.)
+    // Get all existing schedules
+    const storedSchedules = localStorage.getItem("virtualTvSchedules")
+    const allSchedules: ScheduleItem[] = storedSchedules ? JSON.parse(storedSchedules) : []
 
-    setTimeout(() => {
+    // For now, refresh just re-runs auto-schedule on empty slots
+    // In a more advanced implementation, we could track which items were auto-scheduled
+    // and clear only those before re-running
+    const { newItems, result } = autoScheduleChannel(selectedChannel, settings, allSchedules)
+
+    if (newItems.length > 0) {
+      addScheduleItems(newItems)
+
       toast({
         title: "Refresh Schedule Complete",
-        description: "Schedule has been refreshed with your updated media library. Manual schedules preserved.",
+        description: `Added ${result.scheduled} new items to empty slots.`,
       })
-    }, 2000)
+    } else {
+      toast({
+        title: "Refresh Schedule Complete",
+        description: "No new slots to fill.",
+      })
+    }
   }
 
   return (
@@ -123,8 +164,9 @@ export default function SchedulerPage() {
                 <Button
                   size="sm"
                   onClick={handleAutoSchedule}
-                  disabled={!settings.autoSchedule}
+                  disabled={!settings.autoSchedule || !selectedChannelId}
                   className="flex items-center gap-1 text-xs px-2 py-1 h-7"
+                  title={!settings.autoSchedule ? "Enable Auto-Schedule in Settings" : !selectedChannelId ? "Select a channel first" : "Auto-fill empty slots"}
                 >
                   <CalendarIcon className="h-3 w-3" />
                   Auto-Schedule
@@ -132,10 +174,11 @@ export default function SchedulerPage() {
                 <Button
                   size="sm"
                   onClick={handleRefreshSchedule}
-                  disabled={!settings.autoSchedule}
+                  disabled={!settings.autoSchedule || !selectedChannelId}
                   className="flex items-center gap-1 text-xs px-2 py-1 h-7"
+                  title={!settings.autoSchedule ? "Enable Auto-Schedule in Settings" : !selectedChannelId ? "Select a channel first" : "Re-run auto-scheduler"}
                 >
-                  <img src="/icons/refresh.png" alt="Refresh" className="h-3 w-3" />
+                  <CalendarIcon className="h-3 w-3" />
                   Refresh Schedule
                 </Button>
               </div>
