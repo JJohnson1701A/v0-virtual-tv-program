@@ -5,6 +5,7 @@ import type { Channel } from "@/types/channel"
 import type { MediaItem } from "@/types/media"
 import type { ScheduleItem } from "@/types/schedule"
 import type { Settings, DaypartSettings } from "@/hooks/use-settings"
+import { logInfo, logDebug, logWarn, logError } from "@/hooks/use-app-logger"
 
 // Safe harbor ratings that are allowed outside safe harbor times
 const SAFE_HARBOR_TV_RATINGS = ["TV-Y", "TV-Y7", "TV-G", "TV-PG"]
@@ -128,8 +129,11 @@ export function useAutoScheduler() {
       const result: AutoScheduleResult = { scheduled: 0, skipped: 0, errors: [] }
       const newItems: Omit<ScheduleItem, "id">[] = []
 
+      logInfo("AutoScheduler", `Starting auto-schedule for channel "${channel.name}" (${channel.number})`)
+
       // Load media library
       const allMedia: MediaItem[] = JSON.parse(localStorage.getItem("mediaLibrary") || "[]")
+      logDebug("AutoScheduler", `Loaded ${allMedia.length} total media items from library`)
 
       // Filter to only media assigned to this channel
       const channelMedia = allMedia.filter((media) => {
@@ -137,7 +141,10 @@ export function useAutoScheduler() {
         return channel.assignedMedia.includes(media.id)
       })
 
+      logDebug("AutoScheduler", `Found ${channelMedia.length} media items assigned to channel`)
+
       if (channelMedia.length === 0) {
+        logWarn("AutoScheduler", "No media assigned to this channel")
         result.errors.push("No media assigned to this channel")
         return { newItems, result }
       }

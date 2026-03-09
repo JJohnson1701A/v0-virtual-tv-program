@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useMediaLibrary } from "./use-media-library"
 import { useBlocksMarathons } from "./use-blocks-marathons"
+import { logInfo, logDebug, logWarn, logError } from "@/hooks/use-app-logger"
 
 export interface CommercialItem {
   id: string
@@ -104,11 +105,12 @@ export function useVirtualTV(channelNumber: number) {
 
   // Find current media for the channel
   useEffect(() => {
-    const channel = findChannelByNumber(channelNumber)
-    if (!channel) {
-      setCurrentMedia(null)
-      setIsStatic(true)
-      return
+  const channel = findChannelByNumber(channelNumber)
+  if (!channel) {
+    logWarn("VirtualTV", `Channel ${channelNumber} not found`)
+    setCurrentMedia(null)
+  setIsStatic(true)
+  return
     }
 
     const { dayOfWeek, currentTime, hours, minutes } = getCurrentTimeInfo()
@@ -128,10 +130,11 @@ export function useVirtualTV(channelNumber: number) {
       return matchesDay && isTimeInSchedule(item.startTime, item.endTime, hours, minutes)
     })
 
-    if (!currentScheduleItem) {
-      setCurrentMedia(null)
-      setIsStatic(true)
-      return
+  if (!currentScheduleItem) {
+    logDebug("VirtualTV", `No schedule item found for channel ${channelNumber} at current time`)
+    setCurrentMedia(null)
+  setIsStatic(true)
+  return
     }
 
     // Find the actual media item
@@ -320,10 +323,18 @@ export function useVirtualTV(channelNumber: number) {
           runtime: f.runtime,
           commercialCategory: f.commercialCategory,
         }))
-      setCommercials(availableCommercials)
-
+  setCommercials(availableCommercials)
+      logInfo("VirtualTV", `Playing media: "${media.title}" on channel ${channelNumber}`, {
+        startTime: media.startTime,
+        endTime: media.endTime,
+        startOffset: media.startOffset,
+        fillStyle: media.fillStyle,
+        fillerRemaining: media.fillerRemainingSec,
+        commercialsAvailable: availableCommercials.length,
+      })
+  
       setCurrentMedia(media)
-      setIsStatic(false)
+  setIsStatic(false)
     } else {
       // Check for blocks/marathons
       const block = blocks.find((b) => b.id === currentScheduleItem.mediaId)

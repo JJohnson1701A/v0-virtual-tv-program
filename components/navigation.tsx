@@ -1,13 +1,46 @@
-import Link from "next/link"
+"use client"
 
-type NavigationTab = "Media Library" | "Channel Creator" | "Scheduler" | "Blocks-Marathons" | "Settings" | "Virtual TV"
+import Link from "next/link"
+import { useEffect, useState } from "react"
+
+type NavigationTab = "Media Library" | "Channel Creator" | "Scheduler" | "Blocks-Marathons" | "Settings" | "Virtual TV" | "Logs"
 
 interface NavigationProps {
   activeTab: NavigationTab
 }
 
 export function Navigation({ activeTab }: NavigationProps) {
-  const tabs: NavigationTab[] = [
+  const [loggingEnabled, setLoggingEnabled] = useState(false)
+
+  useEffect(() => {
+    // Check if logging is enabled from settings
+    try {
+      const settings = localStorage.getItem("virtualTvSettings")
+      if (settings) {
+        const parsed = JSON.parse(settings)
+        setLoggingEnabled(parsed.loggingEnabled === true)
+      }
+    } catch {
+      // Ignore errors
+    }
+
+    // Listen for storage changes to update the nav when settings change
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "virtualTvSettings" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue)
+          setLoggingEnabled(parsed.loggingEnabled === true)
+        } catch {
+          // Ignore errors
+        }
+      }
+    }
+
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
+
+  const baseTabs: NavigationTab[] = [
     "Media Library",
     "Channel Creator",
     "Scheduler",
@@ -15,6 +48,8 @@ export function Navigation({ activeTab }: NavigationProps) {
     "Settings",
     "Virtual TV",
   ]
+
+  const tabs: NavigationTab[] = loggingEnabled ? [...baseTabs, "Logs"] : baseTabs
 
   const getHref = (tab: NavigationTab): string => {
     if (tab === "Settings") {

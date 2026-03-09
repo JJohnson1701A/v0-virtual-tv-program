@@ -99,6 +99,7 @@ export interface Settings {
   channelTypeSettings: ChannelTypeSettings
   accentColor: AccentColor
   infoDisplayDuration: 2 | 3 | 5
+  loggingEnabled: boolean
 }
 
 const defaultRatingAudioFiles: RatingAudioFiles = {
@@ -340,6 +341,7 @@ const defaultSettings: Settings = {
   channelTypeSettings: defaultChannelTypeSettings,
   accentColor: "blue",
   infoDisplayDuration: 3,
+  loggingEnabled: false,
 }
 
 // ---------------------------------------------------------------------------

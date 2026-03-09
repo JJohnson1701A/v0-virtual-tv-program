@@ -1416,6 +1416,38 @@ export function SettingsPanel() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Developer Options</CardTitle>
+            <CardDescription>Options for diagnosing issues and troubleshooting</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="logging-enabled" className="text-base font-medium">
+                  Enable Logging
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, Virtual TV will log program activity to help diagnose errors and understand program
+                  logic. A "Logs" tab will appear in the navigation. You can export logs to send to developers.
+                </p>
+              </div>
+              <Switch
+                id="logging-enabled"
+                checked={settings.loggingEnabled}
+                onCheckedChange={(checked) => {
+                  updateSetting("loggingEnabled", checked)
+                  // Force a storage event to update navigation
+                  window.dispatchEvent(new StorageEvent("storage", {
+                    key: "virtualTvSettings",
+                    newValue: JSON.stringify({ ...settings, loggingEnabled: checked }),
+                  }))
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>About Virtual TV 3</CardTitle>
             <CardDescription>Information about your Virtual TV installation</CardDescription>
           </CardHeader>
